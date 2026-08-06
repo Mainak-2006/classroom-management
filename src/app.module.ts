@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaModule } from './prisma/prisma.module';
 import { TeacherModule } from './teacher/teacher.module';
 import { StudentModule } from './student/student.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +17,7 @@ import { ExamModule } from './exam/exam.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    PrismaModule,
     TeacherModule,
     StudentModule,
     AuthModule,

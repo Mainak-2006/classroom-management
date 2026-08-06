@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AdminRole {
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+model Admin {
+  id          String    @id @default(cuid())
+  firstName   String
+  middleName  String?
+  lastName    String
+  email       String    @unique
+  phone       String
+  dateOfBirth DateTime
+  gender      Gender
+  department  String
+  role        AdminRole @default(ADMIN)
+  profileImage String?
+  isActive    Boolean   @default(true)
+  password    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Teacher {
+  id             String   @id @default(cuid())
+  firstName      String
+  middleName     String?
+  lastName       String
+  email          String   @unique
+  phone          String
+  dateOfBirth    DateTime
+  gender         Gender
+  employeeId     String   @unique
+  department     String
+  designation    String
+  qualification  String
+  specialization String?
+  officeRoom     String?
+  profileImage   String?
+  isActive       Boolean  @default(true)
+  password       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  courses        Course[]
+}
+
+model Student {
+  id                 String             @id @default(cuid())
+  firstName          String
+  middleName         String?
+  lastName           String
+  email              String             @unique
+  phone              String
+  dateOfBirth        DateTime
+  gender             Gender
+  rollNumber         String             @unique
+  registrationNumber String             @unique
+  department         String
+  semester           Int
+  section            String?
+  address            String?
+  profileImage       String?
+  guardianName       String?
+  guardianPhone      String?
+  isActive           Boolean            @default(true)
+  password           String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  courses            Course[]
+  attendance         Attendance[]
+  examSubmissions    ExamSubmission[]
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  department  String
+  semester    Int
+  credits     Int
+  isActive    Boolean  @default(true)
+  teacherId   String?
+  teacher     Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  students    Student[]
+  assignments Assignment[]
+  exams       Exam[]
+  attendance  Attendance[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  studentId String
+  courseId  String
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  notes     String?
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([studentId, courseId, date])
+}
+
+model Assignment {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  courseId     String
+  dueDate      DateTime
+  totalMarks   Int
+  instructions String?
+  status       AssignmentStatus @default(DRAFT)
+  isActive     Boolean          @default(true)
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Exam {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  courseId     String
+  examDate     DateTime
+  duration     Int
+  totalMarks   Int
+  instructions String?
+  status       ExamStatus       @default(DRAFT)
+  isActive     Boolean          @default(true)
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions  ExamSubmission[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model ExamSubmission {
+  id          String   @id @default(cuid())
+  examId      String
+  studentId   String
+  score       Int
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}

@@ -10,8 +10,13 @@ NestJS 11 classroom-management REST API. `@/src` is the app root; `@/test` holds
 - `npm test` – jest, rootDir `src`, matches `*.spec.ts` only. Single: `npm test -- <path/to/file.spec.ts>`.
 - `npm run test:e2e` – jest with `test/jest-e2e.json` (superagent-based, expects `src/main` boot).
 
-## Critical: there is NO real database
-Every service stores data in an **in-memory array** (`private x: T[] = []`) and resets on restart. `typeorm`, `@nestjs/typeorm`, and `sqlite3` are installed and `course/teacher/student` entities carry TypeORM decorators, but no `TypeOrmModule.forRoot`, `DataSource`, or `InjectRepository` exists anywhere. Do NOT write TypeORM queries expecting persistence; data access lives in the services. Passwords are bcrypt-hashed and stripped from responses via a local `omit()` helper.
+## Persistence: Prisma + hosted PostgreSQL (REAL database)
+Data lives in a **PostgreSQL** database (Prisma 7, `prisma-client-js` generator → `@prisma/client`, driver adapter `@prisma/adapter-pg` + `pg`). All services are **async** and query via `PrismaService` (`src/prisma/prisma.service.ts`), a global `@Global()` module. `prisma/schema.prisma` is authoritative; `npx prisma migrate dev` applies/versions migrations; `npx prisma db seed` loads `prisma/seed.ts` (admin/teacher/student/course). Standalone scripts (`lib/prisma.ts`, `scripts/verify-prisma.ts`) use a separate singleton. Passwords are bcrypt-hashed and stripped from responses via a local `omit()` helper.
+
+- The **only** in-memory piece is the auth `RefreshTokenStore` (token rotation/blacklist), kept by design.
+- The legacy in-memory arrays and TypeORM decorators are gone; do not resurrect `private x: T[]` or `@Entity()` persistence.
+- Tests never touch the DB: jest maps `@prisma/client` → `test/prisma-client-stub.ts` (plain `class PrismaClient {}`) for unit + e2e suites.
+- `runtime` note: `dist/` output is CommonJS → the classic `prisma-client-js` generator is required (the Prisma 7 default `prisma-client` generator emits ESM/`import.meta` and will crash under `node dist/main`).
 
 ## Auth / routing conventions
 - `JwtAuthGuard` and `RolesGuard` are registered as global `APP_GUARD`s, so **every route is JWT-protected by default**. Make a route public with `@Public()`; restrict with `@Roles(Role.ADMIN | Role.TEACHER | Role.STUDENT)`.
@@ -19,8 +24,8 @@ Every service stores data in an **in-memory array** (`private x: T[] = []`) and 
 - Use `@CurrentUser()` to read the authenticated user (type `AuthenticatedUser`).
 
 ## Config
-- Copy `.env.example` → `.env` (`.env` is gitignored; `JWT_SECRET`/`JWT_REFRESH_SECRET` are required at boot).
-- On startup `SeedService` (`src/seed/seed.service.ts`) auto-creates a default admin from `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` (defaults `admin@example.com` / `admin123`) unless `SEED_DEFAULT_ADMIN=false`. To get an admin to log in with, this must run.
+- Copy `.env.example` → `.env` (`.env` is gitignored; `DATABASE_URL` + `JWT_SECRET`/`JWT_REFRESH_SECRET` are required at boot).
+- On startup `SeedService` (`src/seed/seed.service.ts`) auto-creates a default admin from `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` (defaults `admin@example.com` / `admin123`) unless `SEED_DEFAULT_ADMIN=false`. To get an admin to log in with, this must run (or use `npx prisma db seed`).
 
 ## Conventions
 - Controllers return an envelope: `{ message, data, total? }`.

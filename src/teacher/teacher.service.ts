@@ -2,32 +2,54 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import type { Teacher } from '@prisma/client';
+
+type SafeTeacher = Omit<Teacher, 'password'>;
+
+function omit<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Omit<T, K> {
+  const result = { ...obj };
+  for (const key of keys) {
+    delete result[key];
+  }
+  return result;
+}
 
 @Injectable()
 export class TeacherService {
-  private teacher: any[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
-  async validateTeacher(email: string, password: string): Promise<any> {
-    const teacher = this.teacher.find((t) => t.email === email);
+  async validateTeacher(
+    email: string,
+    password: string,
+  ): Promise<SafeTeacher | null> {
+    const teacher = await this.prisma.teacher.findUnique({ where: { email } });
+
     if (teacher && (await bcrypt.compare(password, teacher.password))) {
-      const { password, confirmPassword, ...result } = teacher;
-      return result;
+      return omit(teacher, ['password']);
     }
+
     return null;
   }
 
   async create(createTeacherDto: CreateTeacherDto) {
-    const exists = this.teacher.find(
-      (teacher) =>
-        teacher.email === createTeacherDto.email ||
-        teacher.employeeId === createTeacherDto.employeeId,
-    );
+    const exists = await this.prisma.teacher.findFirst({
+      where: {
+        OR: [
+          { email: createTeacherDto.email },
+          { employeeId: createTeacherDto.employeeId },
+        ],
+      },
+      select: { id: true },
+    });
 
     if (exists) {
       throw new ConflictException(
@@ -35,134 +57,130 @@ export class TeacherService {
       );
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createTeacherDto.password, salt);
 
-    const teacher = {
-      id: Date.now().toString(),
-      ...createTeacherDto,
-      password: hashedPassword,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const { confirmPassword, ...rest } = createTeacherDto;
 
-    this.teacher.push(teacher);
+    const teacher = await this.prisma.teacher.create({
+      data: {
+        ...rest,
+        dateOfBirth: new Date(rest.dateOfBirth),
+        password: hashedPassword,
+      },
+    });
 
-    // Remove password and confirmPassword from response
-    const { password, confirmPassword, ...result } = teacher;
     return {
       message: 'Teacher created successfully',
-      data: result,
+      data: omit(teacher, ['password']),
     };
   }
 
-  findAll() {
+  async findAll() {
+    const teachers = await this.prisma.teacher.findMany();
+
     return {
-      total: this.teacher.length,
-      data: this.teacher.map(({ password, confirmPassword, ...rest }) => rest),
+      total: teachers.length,
+      data: teachers.map((teacher) => omit(teacher, ['password'])),
     };
   }
 
-  findOne(id: string) {
-    const teacher = this.teacher.find((teacher) => teacher.id === id);
+  async findOne(id: string) {
+    const teacher = await this.prisma.teacher.findUnique({ where: { id } });
 
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
     }
 
-    const { password, confirmPassword, ...result } = teacher;
-    return result;
+    return omit(teacher, ['password']);
   }
 
   async update(id: string, updateTeacherDto: UpdateTeacherDto) {
-    const index = this.teacher.findIndex((teacher) => teacher.id === id);
+    const exists = await this.prisma.teacher.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!exists) {
       throw new NotFoundException('Teacher not found');
     }
 
-    // If password is being updated, hash it
-    if (updateTeacherDto.password) {
-      const salt = await bcrypt.genSalt(10);
-      updateTeacherDto.password = await bcrypt.hash(
-        updateTeacherDto.password,
-        salt,
-      );
-    }
+    const { confirmPassword, password, ...rest } = updateTeacherDto;
 
-    this.teacher[index] = {
-      ...this.teacher[index],
-      ...updateTeacherDto,
-      updatedAt: new Date(),
+    const data: Parameters<typeof this.prisma.teacher.update>[0]['data'] = {
+      ...rest,
     };
 
-    const { password, confirmPassword, ...result } = this.teacher[index];
+    if (rest.dateOfBirth) {
+      data.dateOfBirth = new Date(rest.dateOfBirth);
+    }
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      data.password = await bcrypt.hash(password, salt);
+    }
+
+    const teacher = await this.prisma.teacher.update({ where: { id }, data });
+
     return {
       message: 'Teacher updated successfully',
-      data: result,
+      data: omit(teacher, ['password']),
     };
   }
 
-  remove(id: string) {
-    const index = this.teacher.findIndex((teacher) => teacher.id === id);
+  async remove(id: string) {
+    const exists = await this.prisma.teacher.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!exists) {
       throw new NotFoundException('Teacher not found');
     }
 
-    const deletedTeacher = this.teacher.splice(index, 1);
+    const deletedTeacher = await this.prisma.teacher.delete({ where: { id } });
 
-    const { password, confirmPassword, ...result } = deletedTeacher[0];
     return {
       message: 'Teacher deleted successfully',
-      data: result,
+      data: omit(deletedTeacher, ['password']),
     };
   }
 
   async createBulk(teachers: CreateTeacherDto[]) {
-    const createdTeachers: any[] = [];
+    const createdTeachers: Teacher[] = [];
 
     for (const teacher of teachers) {
-      const exists = this.teacher.find(
-        (t) => t.email === teacher.email || t.employeeId === teacher.employeeId,
-      );
+      const exists = await this.prisma.teacher.findFirst({
+        where: {
+          OR: [{ email: teacher.email }, { employeeId: teacher.employeeId }],
+        },
+        select: { id: true },
+      });
 
       if (exists) {
         continue;
       }
 
-      // Hash password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(teacher.password, salt);
 
-      // Generate a more unique ID using timestamp + random + index to ensure uniqueness even in fast loops
-      const uniqueId =
-        Date.now().toString() + Math.random().toString(36).substring(2, 11);
+      const { confirmPassword, ...rest } = teacher;
 
-      const newTeacher = {
-        id: uniqueId,
-        ...teacher,
-        password: hashedPassword,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const newTeacher = await this.prisma.teacher.create({
+        data: {
+          ...rest,
+          dateOfBirth: new Date(rest.dateOfBirth),
+          password: hashedPassword,
+        },
+      });
 
-      this.teacher.push(newTeacher);
       createdTeachers.push(newTeacher);
     }
 
-    // Remove passwords and confirmPassword from response
-    const sanitizedTeachers = createdTeachers.map(
-      ({ password, confirmPassword, ...rest }) => rest,
-    );
-
     return {
-      message: `${sanitizedTeachers.length} teachers created successfully`,
-      total: sanitizedTeachers.length,
-      data: sanitizedTeachers,
+      message: `${createdTeachers.length} teachers created successfully`,
+      total: createdTeachers.length,
+      data: createdTeachers.map((teacher) => omit(teacher, ['password'])),
     };
   }
 }

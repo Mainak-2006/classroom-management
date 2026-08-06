@@ -5,16 +5,12 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
-import { AdminEntity } from './entities/admin.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
+import type { Admin } from '@prisma/client';
 
-type StoredAdmin = Omit<AdminEntity, 'dateOfBirth'> & {
-  dateOfBirth: Date | string;
-  confirmPassword?: string;
-};
-
-type SafeAdmin = Omit<StoredAdmin, 'password' | 'confirmPassword'>;
+type SafeAdmin = Omit<Admin, 'password'>;
 
 function omit<T extends object, K extends keyof T>(
   obj: T,
@@ -29,149 +25,153 @@ function omit<T extends object, K extends keyof T>(
 
 @Injectable()
 export class AdminService {
-  private admin: StoredAdmin[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
   async validateAdmin(
     email: string,
     password: string,
   ): Promise<SafeAdmin | null> {
-    const admin = this.admin.find((a) => a.email === email);
+    const admin = await this.prisma.admin.findUnique({ where: { email } });
+
     if (admin && (await bcrypt.compare(password, admin.password))) {
-      return omit(admin, ['password', 'confirmPassword']);
+      return omit(admin, ['password']);
     }
+
     return null;
   }
 
   async create(createAdminDto: CreateAdminDto) {
-    const exists = this.admin.find(
-      (admin) => admin.email === createAdminDto.email,
-    );
+    const exists = await this.prisma.admin.findUnique({
+      where: { email: createAdminDto.email },
+      select: { id: true },
+    });
 
     if (exists) {
       throw new ConflictException('Admin with this email already exists.');
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createAdminDto.password, salt);
 
-    const admin: StoredAdmin = {
-      id: Date.now().toString(),
-      ...createAdminDto,
-      password: hashedPassword,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const { confirmPassword, ...rest } = createAdminDto;
 
-    this.admin.push(admin);
+    const admin = await this.prisma.admin.create({
+      data: {
+        ...rest,
+        dateOfBirth: new Date(rest.dateOfBirth),
+        password: hashedPassword,
+      },
+    });
 
     return {
       message: 'Admin created successfully',
-      data: omit(admin, ['password', 'confirmPassword']),
+      data: omit(admin, ['password']),
     };
   }
 
-  findAll() {
+  async findAll() {
+    const admins = await this.prisma.admin.findMany();
+
     return {
-      total: this.admin.length,
-      data: this.admin.map((admin) =>
-        omit(admin, ['password', 'confirmPassword']),
-      ),
+      total: admins.length,
+      data: admins.map((admin) => omit(admin, ['password'])),
     };
   }
 
-  findOne(id: string) {
-    const admin = this.admin.find((a) => a.id === id);
+  async findOne(id: string) {
+    const admin = await this.prisma.admin.findUnique({ where: { id } });
 
     if (!admin) {
       throw new NotFoundException('Admin not found');
     }
 
-    return omit(admin, ['password', 'confirmPassword']);
+    return omit(admin, ['password']);
   }
 
   async update(id: string, updateAdminDto: UpdateAdminDto) {
-    const index = this.admin.findIndex((admin) => admin.id === id);
+    const exists = await this.prisma.admin.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!exists) {
       throw new NotFoundException('Admin not found');
     }
 
-    // If password is being updated, hash it
-    if (updateAdminDto.password) {
-      const salt = await bcrypt.genSalt(10);
-      updateAdminDto.password = await bcrypt.hash(
-        updateAdminDto.password,
-        salt,
-      );
+    const { confirmPassword, password, ...rest } = updateAdminDto;
+
+    const data: Parameters<typeof this.prisma.admin.update>[0]['data'] = {
+      ...rest,
+    };
+
+    if (rest.dateOfBirth) {
+      data.dateOfBirth = new Date(rest.dateOfBirth);
     }
 
-    this.admin[index] = {
-      ...this.admin[index],
-      ...updateAdminDto,
-      password: updateAdminDto.password ?? this.admin[index].password,
-      updatedAt: new Date(),
-    };
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      data.password = await bcrypt.hash(password, salt);
+    }
+
+    const admin = await this.prisma.admin.update({ where: { id }, data });
 
     return {
       message: 'Admin updated successfully',
-      data: omit(this.admin[index], ['password', 'confirmPassword']),
+      data: omit(admin, ['password']),
     };
   }
 
-  remove(id: string) {
-    const index = this.admin.findIndex((admin) => admin.id === id);
+  async remove(id: string) {
+    const exists = await this.prisma.admin.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!exists) {
       throw new NotFoundException('Admin not found');
     }
 
-    const deletedAdmin = this.admin.splice(index, 1);
+    const deletedAdmin = await this.prisma.admin.delete({ where: { id } });
 
     return {
       message: 'Admin deleted successfully',
-      data: omit(deletedAdmin[0], ['password', 'confirmPassword']),
+      data: omit(deletedAdmin, ['password']),
     };
   }
 
   async createBulk(admins: CreateAdminDto[]) {
-    const createdAdmins: StoredAdmin[] = [];
+    const createdAdmins: Admin[] = [];
 
     for (const admin of admins) {
-      const exists = this.admin.find((a) => a.email === admin.email);
+      const exists = await this.prisma.admin.findUnique({
+        where: { email: admin.email },
+        select: { id: true },
+      });
 
       if (exists) {
         continue;
       }
 
-      // Hash password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(admin.password, salt);
 
-      // Generate a more unique ID using timestamp + random to ensure uniqueness even in fast loops
-      const uniqueId =
-        Date.now().toString() + Math.random().toString(36).substring(2, 11);
+      const { confirmPassword, ...rest } = admin;
 
-      const newAdmin: StoredAdmin = {
-        id: uniqueId,
-        ...admin,
-        password: hashedPassword,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const newAdmin = await this.prisma.admin.create({
+        data: {
+          ...rest,
+          dateOfBirth: new Date(rest.dateOfBirth),
+          password: hashedPassword,
+        },
+      });
 
-      this.admin.push(newAdmin);
       createdAdmins.push(newAdmin);
     }
 
     return {
       message: `${createdAdmins.length} admins created successfully`,
       total: createdAdmins.length,
-      data: createdAdmins.map((admin) =>
-        omit(admin, ['password', 'confirmPassword']),
-      ),
+      data: createdAdmins.map((admin) => omit(admin, ['password'])),
     };
   }
 }

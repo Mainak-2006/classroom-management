@@ -4,46 +4,60 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { PrismaService } from '../prisma/prisma.service';
+import type { Attendance } from '@prisma/client';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { Attendance, AttendanceStatus } from './entities/attendance.entity';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
 
+function dayRange(date: Date) {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
+}
+
 @Injectable()
 export class AttendanceService {
-  private attendance: Attendance[] = [];
-
   constructor(
+    private readonly prisma: PrismaService,
     private readonly courseService: CourseService,
     private readonly studentService: StudentService,
   ) {}
 
-  private validateReferences(
+  private async validateReferences(
     studentId: string,
     courseId: string,
     skipStudentId?: string,
   ) {
-    this.courseService.findOne(courseId);
+    await this.courseService.findOne(courseId);
 
     if (studentId !== skipStudentId) {
-      this.studentService.findOne(studentId);
+      await this.studentService.findOne(studentId);
     }
   }
 
-  private assertNoDuplicate(
+  private async assertNoDuplicate(
     studentId: string,
     courseId: string,
     date: Date,
     excludeId?: string,
   ) {
-    const exists = this.attendance.some(
-      (record) =>
-        record.id !== excludeId &&
-        record.studentId === studentId &&
-        record.courseId === courseId &&
-        record.date.toDateString() === date.toDateString(),
-    );
+    const { start, end } = dayRange(date);
+
+    const exists = await this.prisma.attendance.findFirst({
+      where: {
+        id: excludeId ? { not: excludeId } : undefined,
+        studentId,
+        courseId,
+        date: { gte: start, lt: end },
+      },
+      select: { id: true },
+    });
 
     if (exists) {
       throw new ConflictException(
@@ -52,30 +66,29 @@ export class AttendanceService {
     }
   }
 
-  create(createAttendanceDto: CreateAttendanceDto) {
-    this.validateReferences(
+  async create(createAttendanceDto: CreateAttendanceDto) {
+    await this.validateReferences(
       createAttendanceDto.studentId,
       createAttendanceDto.courseId,
     );
 
     const date = new Date(createAttendanceDto.date);
 
-    this.assertNoDuplicate(
+    await this.assertNoDuplicate(
       createAttendanceDto.studentId,
       createAttendanceDto.courseId,
       date,
     );
 
-    const record: Attendance = {
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
-      ...createAttendanceDto,
-      date,
-      status: createAttendanceDto.status ?? AttendanceStatus.PRESENT,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.attendance.push(record);
+    const record = await this.prisma.attendance.create({
+      data: {
+        studentId: createAttendanceDto.studentId,
+        courseId: createAttendanceDto.courseId,
+        date,
+        status: createAttendanceDto.status ?? 'PRESENT',
+        notes: createAttendanceDto.notes,
+      },
+    });
 
     return {
       message: 'Attendance marked successfully',
@@ -83,33 +96,33 @@ export class AttendanceService {
     };
   }
 
-  createBulk(records: CreateAttendanceDto[]) {
+  async createBulk(records: CreateAttendanceDto[]) {
     const createdRecords: Attendance[] = [];
 
     for (const createAttendanceDto of records) {
-      this.validateReferences(
+      await this.validateReferences(
         createAttendanceDto.studentId,
         createAttendanceDto.courseId,
       );
 
       const date = new Date(createAttendanceDto.date);
 
-      this.assertNoDuplicate(
+      await this.assertNoDuplicate(
         createAttendanceDto.studentId,
         createAttendanceDto.courseId,
         date,
       );
 
-      const record: Attendance = {
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
-        ...createAttendanceDto,
-        date,
-        status: createAttendanceDto.status ?? AttendanceStatus.PRESENT,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const record = await this.prisma.attendance.create({
+        data: {
+          studentId: createAttendanceDto.studentId,
+          courseId: createAttendanceDto.courseId,
+          date,
+          status: createAttendanceDto.status ?? 'PRESENT',
+          notes: createAttendanceDto.notes,
+        },
+      });
 
-      this.attendance.push(record);
       createdRecords.push(record);
     }
 
@@ -120,15 +133,17 @@ export class AttendanceService {
     };
   }
 
-  findAll() {
+  async findAll() {
+    const records = await this.prisma.attendance.findMany();
+
     return {
-      total: this.attendance.length,
-      data: this.attendance,
+      total: records.length,
+      data: records,
     };
   }
 
-  findOne(id: string) {
-    const record = this.attendance.find((record) => record.id === id);
+  async findOne(id: string) {
+    const record = await this.prisma.attendance.findUnique({ where: { id } });
 
     if (!record) {
       throw new NotFoundException('Attendance record not found');
@@ -137,51 +152,55 @@ export class AttendanceService {
     return record;
   }
 
-  update(id: string, updateAttendanceDto: UpdateAttendanceDto) {
-    const index = this.attendance.findIndex((record) => record.id === id);
+  async update(id: string, updateAttendanceDto: UpdateAttendanceDto) {
+    const existing = await this.prisma.attendance.findUnique({
+      where: { id },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Attendance record not found');
     }
 
-    const studentId =
-      updateAttendanceDto.studentId ?? this.attendance[index].studentId;
-    const courseId =
-      updateAttendanceDto.courseId ?? this.attendance[index].courseId;
+    const studentId = updateAttendanceDto.studentId ?? existing.studentId;
+    const courseId = updateAttendanceDto.courseId ?? existing.courseId;
 
-    this.validateReferences(
-      studentId,
-      courseId,
-      this.attendance[index].studentId,
-    );
+    await this.validateReferences(studentId, courseId, existing.studentId);
 
     const date = updateAttendanceDto.date
       ? new Date(updateAttendanceDto.date)
-      : this.attendance[index].date;
+      : existing.date;
 
-    this.assertNoDuplicate(studentId, courseId, date, id);
+    await this.assertNoDuplicate(studentId, courseId, date, id);
 
-    this.attendance[index] = {
-      ...this.attendance[index],
-      ...updateAttendanceDto,
-      date,
-      updatedAt: new Date(),
-    };
+    const record = await this.prisma.attendance.update({
+      where: { id },
+      data: {
+        studentId: updateAttendanceDto.studentId,
+        courseId: updateAttendanceDto.courseId,
+        date,
+        status: updateAttendanceDto.status,
+        notes: updateAttendanceDto.notes,
+      },
+    });
 
     return {
       message: 'Attendance updated successfully',
-      data: this.attendance[index],
+      data: record,
     };
   }
 
-  remove(id: string) {
-    const index = this.attendance.findIndex((record) => record.id === id);
+  async remove(id: string) {
+    const existing = await this.prisma.attendance.findUnique({
+      where: { id },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Attendance record not found');
     }
 
-    const deletedRecord = this.attendance.splice(index, 1)[0];
+    const deletedRecord = await this.prisma.attendance.delete({
+      where: { id },
+    });
 
     return {
       message: 'Attendance record deleted successfully',
@@ -190,12 +209,12 @@ export class AttendanceService {
   }
 
   // Find attendance records by course
-  findByCourse(courseId: string) {
-    this.courseService.findOne(courseId);
+  async findByCourse(courseId: string) {
+    await this.courseService.findOne(courseId);
 
-    const records = this.attendance.filter(
-      (record) => record.courseId === courseId,
-    );
+    const records = await this.prisma.attendance.findMany({
+      where: { courseId },
+    });
 
     return {
       total: records.length,
@@ -204,10 +223,10 @@ export class AttendanceService {
   }
 
   // Find attendance records by student
-  findByStudent(studentId: string) {
-    const records = this.attendance.filter(
-      (record) => record.studentId === studentId,
-    );
+  async findByStudent(studentId: string) {
+    const records = await this.prisma.attendance.findMany({
+      where: { studentId },
+    });
 
     return {
       total: records.length,
@@ -216,12 +235,12 @@ export class AttendanceService {
   }
 
   // Find attendance records by date
-  findByDate(date: string) {
-    const target = new Date(date);
+  async findByDate(date: string) {
+    const { start, end } = dayRange(new Date(date));
 
-    const records = this.attendance.filter(
-      (record) => record.date.toDateString() === target.toDateString(),
-    );
+    const records = await this.prisma.attendance.findMany({
+      where: { date: { gte: start, lt: end } },
+    });
 
     return {
       total: records.length,
@@ -230,16 +249,17 @@ export class AttendanceService {
   }
 
   // Find attendance records by course and date
-  findByCourseAndDate(courseId: string, date: string) {
-    this.courseService.findOne(courseId);
+  async findByCourseAndDate(courseId: string, date: string) {
+    await this.courseService.findOne(courseId);
 
-    const target = new Date(date);
+    const { start, end } = dayRange(new Date(date));
 
-    const records = this.attendance.filter(
-      (record) =>
-        record.courseId === courseId &&
-        record.date.toDateString() === target.toDateString(),
-    );
+    const records = await this.prisma.attendance.findMany({
+      where: {
+        courseId,
+        date: { gte: start, lt: end },
+      },
+    });
 
     return {
       total: records.length,

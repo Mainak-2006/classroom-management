@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StudentController } from './student.controller';
 import { StudentService } from './student.service';
 import { AttendanceService } from '../attendance/attendance.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('StudentController', () => {
   let controller: StudentController;
@@ -11,6 +12,7 @@ describe('StudentController', () => {
       controllers: [StudentController],
       providers: [
         StudentService,
+        { provide: PrismaService, useValue: {} },
         {
           provide: AttendanceService,
           useValue: { findByStudent: jest.fn() },

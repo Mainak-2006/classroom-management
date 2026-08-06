@@ -3,6 +3,7 @@ import { ExamController } from './exam.controller';
 import { ExamService } from './exam.service';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('ExamController', () => {
   let controller: ExamController;
@@ -12,6 +13,7 @@ describe('ExamController', () => {
       controllers: [ExamController],
       providers: [
         ExamService,
+        { provide: PrismaService, useValue: {} },
         {
           provide: CourseService,
           useValue: { findOne: jest.fn() },
