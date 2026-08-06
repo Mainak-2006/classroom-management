@@ -1,0 +1,271 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { StudentService } from '../student/student.service';
+import { TeacherService } from '../teacher/teacher.service';
+import { AdminService } from '../admin/admin.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { RefreshTokenStore } from './tokens/refresh-token-store.service';
+import { UnauthorizedException } from '@nestjs/common';
+
+describe('AuthService', () => {
+  let service: AuthService;
+  let studentService: Partial<StudentService>;
+  let teacherService: Partial<TeacherService>;
+  let adminService: Partial<AdminService>;
+  let jwtService: Partial<JwtService>;
+  let tokenStore: Partial<RefreshTokenStore>;
+  let configService: Partial<ConfigService>;
+
+  const mockValidatedStudent = {
+    id: '1',
+    email: 'student@example.com',
+    firstName: 'Test',
+  };
+
+  const mockValidatedTeacher = {
+    id: '2',
+    email: 'teacher@example.com',
+    employeeId: 'T001',
+  };
+
+  const mockValidatedAdmin = {
+    id: '3',
+    email: 'admin@example.com',
+    role: 'ADMIN',
+  };
+
+  const mockDecoded = {
+    id: '1',
+    email: 'student@example.com',
+    role: 'student',
+    type: 'refresh',
+    jti: 'refresh-jti-1',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  };
+
+  beforeEach(async () => {
+    studentService = {
+      validateStudent: jest.fn(),
+    };
+
+    teacherService = {
+      validateTeacher: jest.fn(),
+    };
+
+    adminService = {
+      validateAdmin: jest.fn(),
+    };
+
+    jwtService = {
+      sign: jest.fn().mockReturnValue('mock-token'),
+      verify: jest.fn().mockReturnValue(mockDecoded),
+    };
+
+    tokenStore = {
+      save: jest.fn(),
+      isValid: jest.fn().mockReturnValue(true),
+      revoke: jest.fn(),
+      revokeAllForUser: jest.fn(),
+      blacklistAccessToken: jest.fn(),
+      isAccessTokenBlacklisted: jest.fn().mockReturnValue(false),
+    };
+
+    configService = {
+      getOrThrow: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          key === 'JWT_SECRET' ? 'access-secret' : 'refresh-secret',
+        ),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: StudentService, useValue: studentService },
+        { provide: TeacherService, useValue: teacherService },
+        { provide: AdminService, useValue: adminService },
+        { provide: JwtService, useValue: jwtService },
+        { provide: RefreshTokenStore, useValue: tokenStore },
+        { provide: ConfigService, useValue: configService },
+      ],
+    }).compile();
+
+    service = module.get<AuthService>(AuthService);
+  });
+
+  describe('login', () => {
+    it('should return an access + refresh token pair for valid student credentials', async () => {
+      (studentService.validateStudent as jest.Mock).mockResolvedValue(
+        mockValidatedStudent,
+      );
+
+      const result = await service.login(
+        mockValidatedStudent.email,
+        'valid-password',
+      );
+
+      expect(jwtService.sign).toHaveBeenCalledTimes(2);
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'access' }),
+        expect.any(Object),
+      );
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh' }),
+        expect.any(Object),
+      );
+      expect(tokenStore.save).toHaveBeenCalledWith(
+        expect.any(String),
+        { userId: mockValidatedStudent.id, role: 'student' },
+        expect.any(Number),
+      );
+      expect(result).toEqual({
+        accessToken: 'mock-token',
+        refreshToken: 'mock-token',
+        user: {
+          id: mockValidatedStudent.id,
+          email: mockValidatedStudent.email,
+          role: 'student',
+        },
+      });
+    });
+
+    it('should return a teacher token pair when teacher credentials are valid', async () => {
+      (studentService.validateStudent as jest.Mock).mockResolvedValue(null);
+      (teacherService.validateTeacher as jest.Mock).mockResolvedValue(
+        mockValidatedTeacher,
+      );
+
+      const result = await service.login(
+        mockValidatedTeacher.email,
+        'valid-password',
+      );
+
+      expect(result.user.role).toBe('teacher');
+    });
+
+    it('should return an admin token pair when admin credentials are valid', async () => {
+      (studentService.validateStudent as jest.Mock).mockResolvedValue(null);
+      (teacherService.validateTeacher as jest.Mock).mockResolvedValue(null);
+      (adminService.validateAdmin as jest.Mock).mockResolvedValue(
+        mockValidatedAdmin,
+      );
+
+      const result = await service.login(
+        mockValidatedAdmin.email,
+        'valid-password',
+      );
+
+      expect(result.user.role).toBe('admin');
+    });
+
+    it('should throw UnauthorizedException for invalid credentials', async () => {
+      (studentService.validateStudent as jest.Mock).mockResolvedValue(null);
+      (teacherService.validateTeacher as jest.Mock).mockResolvedValue(null);
+      (adminService.validateAdmin as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.login('wrong@example.com', 'wrong-password'),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('should prioritize student login when the same email exists in multiple roles', async () => {
+      (studentService.validateStudent as jest.Mock).mockResolvedValue(
+        mockValidatedStudent,
+      );
+      (teacherService.validateTeacher as jest.Mock).mockResolvedValue(
+        mockValidatedTeacher,
+      );
+
+      const result = await service.login(
+        mockValidatedStudent.email,
+        'any-password',
+      );
+
+      expect(teacherService.validateTeacher).not.toHaveBeenCalled();
+      expect(result.user.role).toBe('student');
+    });
+  });
+
+  describe('refresh', () => {
+    it('should rotate the refresh token and issue a new pair', () => {
+      (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
+      (tokenStore.isValid as jest.Mock).mockReturnValue(true);
+
+      const result = service.refresh('old-refresh-token');
+
+      expect(tokenStore.revoke).toHaveBeenCalledWith('refresh-jti-1');
+      expect(tokenStore.save).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ userId: '1', role: 'student' }),
+        expect.any(Number),
+      );
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+    });
+
+    it('should throw when the refresh token is invalid', () => {
+      (jwtService.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('bad token');
+      });
+
+      expect(() => service.refresh('bad-token')).toThrow(UnauthorizedException);
+    });
+
+    it('should throw when the token is not a refresh token', () => {
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        ...mockDecoded,
+        type: 'access',
+      });
+
+      expect(() => service.refresh('access-token')).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw when the refresh token has been revoked', () => {
+      (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
+      (tokenStore.isValid as jest.Mock).mockReturnValue(false);
+
+      expect(() => service.refresh('revoked-refresh-token')).toThrow(
+        UnauthorizedException,
+      );
+      expect(tokenStore.revoke).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke the refresh token when provided', () => {
+      (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
+
+      const result = service.logout('refresh-token');
+
+      expect(tokenStore.revoke).toHaveBeenCalledWith('refresh-jti-1');
+      expect(result).toEqual({ message: 'Logout successful.' });
+    });
+
+    it('should blacklist the access token when provided', () => {
+      (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
+
+      service.logout(undefined, 'access-token');
+
+      expect(tokenStore.blacklistAccessToken).toHaveBeenCalledWith(
+        'refresh-jti-1',
+        expect.any(Number),
+      );
+    });
+
+    it('should ignore invalid tokens during logout', () => {
+      (jwtService.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('bad token');
+      });
+
+      const result = service.logout('bad-token', 'bad-access-token');
+
+      expect(tokenStore.revoke).not.toHaveBeenCalled();
+      expect(tokenStore.blacklistAccessToken).not.toHaveBeenCalled();
+      expect(result).toEqual({ message: 'Logout successful.' });
+    });
+  });
+});
