@@ -3,6 +3,7 @@ import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('AttendanceController', () => {
   let controller: AttendanceController;
@@ -12,6 +13,7 @@ describe('AttendanceController', () => {
       controllers: [AttendanceController],
       providers: [
         AttendanceService,
+        { provide: PrismaService, useValue: {} },
         {
           provide: CourseService,
           useValue: { findOne: jest.fn() },

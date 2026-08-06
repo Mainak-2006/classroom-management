@@ -28,6 +28,8 @@ A production-style **NestJS 11** REST API for managing a classroom: teachers, st
 | Language | TypeScript |
 | Auth | `@nestjs/jwt`, `passport-jwt`, `bcryptjs` |
 | Validation | `class-validator` + `class-transformer` |
+| Database | PostgreSQL (hosted · Prisma) |
+| ORM | [Prisma 7](https://www.prisma.io) + `@prisma/adapter-pg` |
 | Testing | Jest (`unit` + `supertest` e2e) |
 | Lint / Format | ESLint + Prettier |
 
@@ -38,6 +40,7 @@ A production-style **NestJS 11** REST API for managing a classroom: teachers, st
 ### Prerequisites
 
 - **Node.js** 20+ and npm
+- A **PostgreSQL** database (e.g. Prisma Postgres, Neon, or any Postgres). The connection string goes in `DATABASE_URL`.
 
 ### 1. Install dependencies
 
@@ -56,13 +59,23 @@ Then edit `.env` and **change the JWT secrets** for anything beyond local use.
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
+| `DATABASE_URL` | — | PostgreSQL connection string (**required**) |
 | `JWT_SECRET` | — | Access-token signing secret (**required**) |
 | `JWT_REFRESH_SECRET` | — | Refresh-token signing secret (**required**) |
 | `SEED_DEFAULT_ADMIN` | `true` | Auto-create a default admin on boot |
 | `SEED_ADMIN_EMAIL` | `admin@example.com` | Seeded admin email |
 | `SEED_ADMIN_PASSWORD` | `admin123` | Seeded admin password |
 
-### 3. Run the server
+### 3. Create the schema and seed
+
+```bash
+npx prisma migrate dev --name init   # create tables from prisma/schema.prisma
+npx prisma db seed                   # create the default admin/teacher/student/course
+```
+
+`npx prisma generate` runs automatically on `migrate dev` (or manually after schema edits).
+
+### 4. Run the server
 
 ```bash
 npm run start:dev
@@ -133,14 +146,19 @@ src/
 ├── main.ts                 # Bootstrap: global ValidationPipe + CORS
 ├── app.module.ts          # Root module
 ├── auth/                  # Login, JWT strategy, guards, decorators, token store
-├── admin/                 # Admins + SeedService (default admin)
+├── admin/                 # Admins
 ├── teacher/               # Teachers
 ├── student/               # Students
 ├── course/                # Courses
 ├── assignment/            # Assignments
 ├── attendance/            # Attendance
 ├── exam/                  # Exams & submissions
-└── seed/                  # Default-admin seeding on boot
+├── seed/                  # Default-admin seeding on boot
+└── prisma/                # Global PrismaModule + PrismaService (DB connection)
+prisma/
+├── schema.prisma          # Data model (PostgreSQL)
+├── migrations/            # Versioned migrations
+└── seed.ts                # Seed data (admin/teacher/student/course)
 ```
 
 Each domain follows the NestJS convention: `controller`, `service`, `module`, `dto/`, `entities/`.
@@ -158,12 +176,15 @@ Each domain follows the NestJS convention: `controller`, `service`, `module`, `d
 | `npm run format` | Format all TypeScript |
 | `npm test` | Unit tests (`*.spec.ts`) |
 | `npm run test:e2e` | End-to-end tests (supertest) |
+| `npx prisma migrate dev` | Create/apply migrations from `prisma/schema.prisma` |
+| `npx prisma db seed` | Load seed data into the database |
+| `npx tsx scripts/verify-prisma.ts` | Smoke-test the DB connection |
 
 ---
 
-## ⚠️ Note on Persistence
+## 🗄️ Persistence
 
-This is a **learning / prototype backend**: every service stores records in an in-memory array, so all **data resets when the server restarts**. TypeORM + SQLite dependencies are present for future migration, but no database is wired up yet — real persistence is a natural next step. 🔌
+Data lives in a **PostgreSQL** database accessed through Prisma (`PrismaService` in `src/prisma/`). All services are async and query the real database — no in-memory storage. The only in-memory piece is the auth `RefreshTokenStore` (token rotation/blacklist), by design.
 
 ---
 

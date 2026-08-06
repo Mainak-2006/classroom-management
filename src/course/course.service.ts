@@ -4,48 +4,65 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { PrismaService } from '../prisma/prisma.service';
+import type { Course as CourseModel } from '@prisma/client';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { Course } from './entities/course.entity';
-import { TeacherEntity } from '../teacher/entities/teacher.entity';
-import { StudentEntity } from '../student/entities/student.entity';
 import { TeacherService } from '../teacher/teacher.service';
 import { StudentService } from '../student/student.service';
 
+const courseInclude = {
+  teacher: true,
+  students: true,
+} as const;
+
 @Injectable()
 export class CourseService {
-  private courses: Course[] = [];
-
   constructor(
+    private readonly prisma: PrismaService,
     private readonly teacherService: TeacherService,
     private readonly studentService: StudentService,
   ) {}
 
-  create(createCourseDto: CreateCourseDto) {
-    const existingCourse = this.courses.find(
-      (course) =>
-        course.code.toLowerCase() === createCourseDto.code.toLowerCase(),
-    );
+  async create(createCourseDto: CreateCourseDto) {
+    const existingCourse = await this.prisma.course.findFirst({
+      where: {
+        code: { equals: createCourseDto.code, mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
 
     if (existingCourse) {
       throw new ConflictException('Course with this code already exists');
     }
 
-    const course: Course = {
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
+    let teacherId: string | undefined;
 
-      ...createCourseDto,
+    if (createCourseDto.teacherId) {
+      const teacher = await this.teacherService.findOne(
+        createCourseDto.teacherId,
+      );
 
-      isActive: true,
+      if (!teacher) {
+        throw new NotFoundException('Teacher not found');
+      }
 
-      createdAt: new Date(),
+      teacherId = teacher.id;
+    }
 
-      updatedAt: new Date(),
-      teacher: null as unknown as TeacherEntity,
-      students: [],
-    };
-
-    this.courses.push(course);
+    const course = await this.prisma.course.create({
+      data: {
+        name: createCourseDto.name,
+        code: createCourseDto.code,
+        description: createCourseDto.description,
+        department: createCourseDto.department,
+        semester: createCourseDto.semester,
+        credits: createCourseDto.credits,
+        isActive: true,
+        teacherId,
+      },
+      include: courseInclude,
+    });
 
     return {
       message: 'Course created successfully',
@@ -53,15 +70,22 @@ export class CourseService {
     };
   }
 
-  findAll() {
+  async findAll() {
+    const courses = await this.prisma.course.findMany({
+      include: courseInclude,
+    });
+
     return {
-      total: this.courses.length,
-      data: this.courses,
+      total: courses.length,
+      data: courses,
     };
   }
 
-  findOne(id: string) {
-    const course = this.courses.find((course) => course.id === id);
+  async findOne(id: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id },
+      include: courseInclude,
+    });
 
     if (!course) {
       throw new NotFoundException('Course not found');
@@ -70,45 +94,69 @@ export class CourseService {
     return course;
   }
 
-  update(id: string, updateCourseDto: UpdateCourseDto) {
-    const index = this.courses.findIndex((course) => course.id === id);
+  async update(id: string, updateCourseDto: UpdateCourseDto) {
+    const existing = await this.prisma.course.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
     if (updateCourseDto.code) {
-      const duplicate = this.courses.find(
-        (course) =>
-          course.id !== id &&
-          course.code.toLowerCase() === updateCourseDto.code!.toLowerCase(),
-      );
+      const duplicate = await this.prisma.course.findFirst({
+        where: {
+          id: { not: id },
+          code: { equals: updateCourseDto.code, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
 
       if (duplicate) {
         throw new ConflictException('Course with this code already exists');
       }
     }
 
-    this.courses[index] = {
-      ...this.courses[index],
-      ...updateCourseDto,
-      updatedAt: new Date(),
+    const { teacherId, ...rest } = updateCourseDto;
+
+    const data: Parameters<typeof this.prisma.course.update>[0]['data'] = {
+      ...rest,
     };
+
+    if (teacherId) {
+      const teacher = await this.teacherService.findOne(teacherId);
+
+      if (!teacher) {
+        throw new NotFoundException('Teacher not found');
+      }
+
+      data.teacher = { connect: { id: teacherId } };
+    }
+
+    const course = await this.prisma.course.update({
+      where: { id },
+      data,
+      include: courseInclude,
+    });
 
     return {
       message: 'Course updated successfully',
-      data: this.courses[index],
+      data: course,
     };
   }
 
-  remove(id: string) {
-    const index = this.courses.findIndex((course) => course.id === id);
+  async remove(id: string) {
+    const existing = await this.prisma.course.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
-    const deletedCourse = this.courses.splice(index, 1)[0];
+    const deletedCourse = await this.prisma.course.delete({ where: { id } });
 
     return {
       message: 'Course deleted successfully',
@@ -118,133 +166,140 @@ export class CourseService {
 
   // Assign teacher to course
   async assignTeacherToCourse(courseId: string, teacherId: string) {
-    // Validate course exists
-    const courseIndex = this.courses.findIndex(
-      (course) => course.id === courseId,
-    );
+    const existing = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
+    });
 
-    if (courseIndex === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
-    // Validate teacher exists
     const teacher = await this.teacherService.findOne(teacherId);
+
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
     }
 
-    // Assign teacher to course
-    this.courses[courseIndex] = {
-      ...this.courses[courseIndex],
-      teacher,
-      updatedAt: new Date(),
-    };
+    const course = await this.prisma.course.update({
+      where: { id: courseId },
+      data: { teacher: { connect: { id: teacherId } } },
+      include: courseInclude,
+    });
 
     return {
       message: 'Teacher assigned to course successfully',
-      data: this.courses[courseIndex],
+      data: course,
     };
   }
 
   // Remove teacher from course
-  removeTeacherFromCourse(courseId: string) {
-    const courseIndex = this.courses.findIndex(
-      (course) => course.id === courseId,
-    );
+  async removeTeacherFromCourse(courseId: string) {
+    const existing = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
+    });
 
-    if (courseIndex === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
-    this.courses[courseIndex] = {
-      ...this.courses[courseIndex],
-      teacher: null as unknown as TeacherEntity,
-      updatedAt: new Date(),
-    };
+    const course = await this.prisma.course.update({
+      where: { id: courseId },
+      data: { teacher: { disconnect: true } },
+      include: courseInclude,
+    });
 
     return {
       message: 'Teacher removed from course successfully',
-      data: this.courses[courseIndex],
+      data: course,
     };
   }
 
   // Add student to course
   async addStudentToCourse(courseId: string, studentId: string) {
-    // Validate course exists
-    const courseIndex = this.courses.findIndex(
-      (course) => course.id === courseId,
-    );
+    const existing = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
+    });
 
-    if (courseIndex === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
-    // Validate student exists
     const student = await this.studentService.findOne(studentId);
+
     if (!student) {
       throw new NotFoundException('Student not found');
     }
 
-    // Initialize students array if it doesn't exist
-    if (!this.courses[courseIndex].students) {
-      this.courses[courseIndex].students = [];
-    }
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { students: { select: { id: true } } },
+    });
 
-    // Check if student is already in the course
-    const studentExists = this.courses[courseIndex].students.some(
-      (student) => student.id === studentId,
+    const studentExists = course?.students.some(
+      (enrolled) => enrolled.id === studentId,
     );
 
     if (studentExists) {
       throw new ConflictException('Student is already enrolled in this course');
     }
 
-    // Add student to course
-    this.courses[courseIndex] = {
-      ...this.courses[courseIndex],
-      students: [...this.courses[courseIndex].students, student],
-      updatedAt: new Date(),
-    };
+    const updatedCourse = await this.prisma.course.update({
+      where: { id: courseId },
+      data: { students: { connect: { id: studentId } } },
+      include: courseInclude,
+    });
 
     return {
       message: 'Student added to course successfully',
-      data: this.courses[courseIndex],
+      data: updatedCourse,
     };
   }
 
   // Remove student from course
-  removeStudentFromCourse(courseId: string, studentId: string) {
-    const courseIndex = this.courses.findIndex(
-      (course) => course.id === courseId,
-    );
+  async removeStudentFromCourse(courseId: string, studentId: string) {
+    const existing = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
+    });
 
-    if (courseIndex === -1) {
+    if (!existing) {
       throw new NotFoundException('Course not found');
     }
 
-    if (!this.courses[courseIndex].students) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { students: { select: { id: true } } },
+    });
+
+    const isEnrolled = course?.students.some(
+      (student) => student.id === studentId,
+    );
+
+    if (!isEnrolled) {
       throw new NotFoundException('Course has no students');
     }
 
-    // Filter out the student
-    this.courses[courseIndex].students = this.courses[
-      courseIndex
-    ].students.filter((student) => student.id !== studentId);
-
-    this.courses[courseIndex] = {
-      ...this.courses[courseIndex],
-      updatedAt: new Date(),
-    };
+    const updatedCourse = await this.prisma.course.update({
+      where: { id: courseId },
+      data: { students: { disconnect: { id: studentId } } },
+      include: courseInclude,
+    });
 
     return {
       message: 'Student removed from course successfully',
-      data: this.courses[courseIndex],
+      data: updatedCourse,
     };
   }
 
   // Get course teacher
-  getCourseTeacher(courseId: string) {
-    const course = this.courses.find((course) => course.id === courseId);
+  async getCourseTeacher(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: { teacher: true },
+    });
 
     if (!course) {
       throw new NotFoundException('Course not found');
@@ -258,24 +313,28 @@ export class CourseService {
   }
 
   // Get course students
-  getCourseStudents(courseId: string) {
-    const course = this.courses.find((course) => course.id === courseId);
+  async getCourseStudents(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: { students: true },
+    });
 
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
     return {
-      total: course.students?.length ?? 0,
-      data: course.students ?? [],
+      total: course.students.length,
+      data: course.students,
     };
   }
 
   // Find courses by semester
-  findBySemester(semester: number) {
-    const courses = this.courses.filter(
-      (course) => course.semester === semester,
-    );
+  async findBySemester(semester: number) {
+    const courses = await this.prisma.course.findMany({
+      where: { semester },
+      include: courseInclude,
+    });
 
     return {
       total: courses.length,
@@ -284,10 +343,13 @@ export class CourseService {
   }
 
   // Find courses by department
-  findByDepartment(department: string) {
-    const courses = this.courses.filter(
-      (course) => course.department.toLowerCase() === department.toLowerCase(),
-    );
+  async findByDepartment(department: string) {
+    const courses = await this.prisma.course.findMany({
+      where: {
+        department: { equals: department, mode: 'insensitive' },
+      },
+      include: courseInclude,
+    });
 
     return {
       total: courses.length,
@@ -296,13 +358,15 @@ export class CourseService {
   }
 
   async createBulk(courses: CreateCourseDto[]) {
-    const createdCourses: Course[] = [];
+    const createdCourses: CourseModel[] = [];
 
     for (const createCourseDto of courses) {
-      const existingCourse = this.courses.find(
-        (course) =>
-          course.code.toLowerCase() === createCourseDto.code.toLowerCase(),
-      );
+      const existingCourse = await this.prisma.course.findFirst({
+        where: {
+          code: { equals: createCourseDto.code, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
 
       if (existingCourse) {
         throw new ConflictException(
@@ -310,19 +374,36 @@ export class CourseService {
         );
       }
 
-      const course: Course = {
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
-        ...createCourseDto,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        teacher: null as unknown as TeacherEntity,
-        students: [],
-      };
+      let teacherId: string | undefined;
 
-      this.courses.push(course);
+      if (createCourseDto.teacherId) {
+        const teacher = await this.teacherService.findOne(
+          createCourseDto.teacherId,
+        );
+
+        if (!teacher) {
+          throw new NotFoundException('Teacher not found');
+        }
+
+        teacherId = teacher.id;
+      }
+
+      const course = await this.prisma.course.create({
+        data: {
+          name: createCourseDto.name,
+          code: createCourseDto.code,
+          description: createCourseDto.description,
+          department: createCourseDto.department,
+          semester: createCourseDto.semester,
+          credits: createCourseDto.credits,
+          isActive: true,
+          teacherId,
+        },
+      });
+
       createdCourses.push(course);
     }
+
     return {
       message: ' Courses created successfully',
       data: createdCourses,

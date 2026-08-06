@@ -1,30 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
-import { Assignment, AssignmentStatus } from './entities/assignment.entity';
+import { AssignmentStatus } from '@prisma/client';
 import { CourseService } from '../course/course.service';
 
 @Injectable()
 export class AssignmentService {
-  private assignments: Assignment[] = [];
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly courseService: CourseService,
+  ) {}
 
-  constructor(private readonly courseService: CourseService) {}
+  async create(createAssignmentDto: CreateAssignmentDto) {
+    await this.courseService.findOne(createAssignmentDto.courseId);
 
-  create(createAssignmentDto: CreateAssignmentDto) {
-    this.courseService.findOne(createAssignmentDto.courseId);
-
-    const assignment: Assignment = {
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
-      ...createAssignmentDto,
-      dueDate: new Date(createAssignmentDto.dueDate),
-      status: createAssignmentDto.status ?? AssignmentStatus.DRAFT,
-      isActive: createAssignmentDto.isActive ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.assignments.push(assignment);
+    const assignment = await this.prisma.assignment.create({
+      data: {
+        title: createAssignmentDto.title,
+        description: createAssignmentDto.description,
+        courseId: createAssignmentDto.courseId,
+        dueDate: new Date(createAssignmentDto.dueDate),
+        totalMarks: createAssignmentDto.totalMarks,
+        instructions: createAssignmentDto.instructions,
+        status: createAssignmentDto.status ?? AssignmentStatus.DRAFT,
+        isActive: createAssignmentDto.isActive ?? true,
+      },
+    });
 
     return {
       message: 'Assignment created successfully',
@@ -32,17 +35,19 @@ export class AssignmentService {
     };
   }
 
-  findAll() {
+  async findAll() {
+    const assignments = await this.prisma.assignment.findMany();
+
     return {
-      total: this.assignments.length,
-      data: this.assignments,
+      total: assignments.length,
+      data: assignments,
     };
   }
 
-  findOne(id: string) {
-    const assignment = this.assignments.find(
-      (assignment) => assignment.id === id,
-    );
+  async findOne(id: string) {
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id },
+    });
 
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
@@ -51,44 +56,52 @@ export class AssignmentService {
     return assignment;
   }
 
-  update(id: string, updateAssignmentDto: UpdateAssignmentDto) {
-    const index = this.assignments.findIndex(
-      (assignment) => assignment.id === id,
-    );
+  async update(id: string, updateAssignmentDto: UpdateAssignmentDto) {
+    const existing = await this.prisma.assignment.findUnique({
+      where: { id },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Assignment not found');
     }
 
     if (updateAssignmentDto.courseId) {
-      this.courseService.findOne(updateAssignmentDto.courseId);
+      await this.courseService.findOne(updateAssignmentDto.courseId);
     }
 
-    this.assignments[index] = {
-      ...this.assignments[index],
-      ...updateAssignmentDto,
-      dueDate: updateAssignmentDto.dueDate
-        ? new Date(updateAssignmentDto.dueDate)
-        : this.assignments[index].dueDate,
-      updatedAt: new Date(),
+    const { dueDate, ...rest } = updateAssignmentDto;
+
+    const data: Parameters<typeof this.prisma.assignment.update>[0]['data'] = {
+      ...rest,
     };
+
+    if (dueDate) {
+      data.dueDate = new Date(dueDate);
+    }
+
+    const assignment = await this.prisma.assignment.update({
+      where: { id },
+      data,
+    });
 
     return {
       message: 'Assignment updated successfully',
-      data: this.assignments[index],
+      data: assignment,
     };
   }
 
-  remove(id: string) {
-    const index = this.assignments.findIndex(
-      (assignment) => assignment.id === id,
-    );
+  async remove(id: string) {
+    const existing = await this.prisma.assignment.findUnique({
+      where: { id },
+    });
 
-    if (index === -1) {
+    if (!existing) {
       throw new NotFoundException('Assignment not found');
     }
 
-    const deletedAssignment = this.assignments.splice(index, 1)[0];
+    const deletedAssignment = await this.prisma.assignment.delete({
+      where: { id },
+    });
 
     return {
       message: 'Assignment deleted successfully',
@@ -97,12 +110,12 @@ export class AssignmentService {
   }
 
   // Find assignments by course
-  findByCourse(courseId: string) {
-    this.courseService.findOne(courseId);
+  async findByCourse(courseId: string) {
+    await this.courseService.findOne(courseId);
 
-    const assignments = this.assignments.filter(
-      (assignment) => assignment.courseId === courseId,
-    );
+    const assignments = await this.prisma.assignment.findMany({
+      where: { courseId },
+    });
 
     return {
       total: assignments.length,
@@ -111,10 +124,10 @@ export class AssignmentService {
   }
 
   // Find assignments by status
-  findByStatus(status: AssignmentStatus) {
-    const assignments = this.assignments.filter(
-      (assignment) => assignment.status === status,
-    );
+  async findByStatus(status: AssignmentStatus) {
+    const assignments = await this.prisma.assignment.findMany({
+      where: { status },
+    });
 
     return {
       total: assignments.length,

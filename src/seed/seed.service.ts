@@ -29,9 +29,7 @@ export class SeedService implements OnModuleInit {
     const password =
       this.configService.get<string>('SEED_ADMIN_PASSWORD') ?? 'admin123';
 
-    const { data } = this.adminService.findAll() as {
-      data: Array<{ email: string }>;
-    };
+    const { data } = await this.adminService.findAll();
 
     const existing = data.some((admin) => admin.email === email);
 
