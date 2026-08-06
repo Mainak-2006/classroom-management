@@ -1,0 +1,12 @@
+{
+  "region": "ap-southeast-1",
+  "app": {
+    "name": "server",
+    "framework": "nestjs",
+    "httpPort": 3000,
+    "build": {
+      "command": "npm run build",
+      "outputDirectory": "dist"
+    }
+  }
+}
