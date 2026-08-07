@@ -204,6 +204,7 @@ export class ExamService {
 
     const submissions = await this.prisma.examSubmission.findMany({
       where: { studentId },
+      include: { exam: { include: { course: true } } },
     });
 
     return {

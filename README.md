@@ -125,11 +125,15 @@ curl http://localhost:3000/admin/profile \
 | CRUD | `/admin` | admin | Manage admin accounts (+ `POST /admin/bulk`) |
 | CRUD | `/teacher` | admin / teacher (self) | Manage teachers |
 | CRUD | `/student` | admin / teacher / student | Manage students |
+| `GET` | `/student/profile` | student | Full profile of the logged-in student |
+| `GET` | `/student/courses` | student | Courses the logged-in student is enrolled in |
+| `GET` | `/student/attendance` | student | Own attendance records |
+| `GET` | `/student/exams` | student | Own exam results (with exam + course details) |
 | CRUD | `/course` | admin | Courses |
 | `GET` | `/course` | admin | List courses |
-| CRUD | `/assignment` | admin, teacher | Manage & submissions |
-| CRUD | `/attendance` | admin, teacher | Mark & read attendance |
-| CRUD | `/exam` | admin, teacher | Exams & student citations |
+| CRUD | `/assignment` | admin / teacher | Manage assignments |
+| CRUD | `/attendance` | admin / teacher | Mark & read attendance; students reach their own records via `/student/attendance` |
+| CRUD | `/exam` | admin / teacher | Exams & student submissions; students reach their own via `/student/exams` |
 
 Responses follow a consistent envelope:
 

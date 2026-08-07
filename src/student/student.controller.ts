@@ -11,6 +11,8 @@ import { StudentService } from './student.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { AttendanceService } from '../attendance/attendance.service';
+import { CourseService } from '../course/course.service';
+import { ExamService } from '../exam/exam.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
@@ -21,6 +23,8 @@ export class StudentController {
   constructor(
     private readonly studentService: StudentService,
     private readonly attendanceService: AttendanceService,
+    private readonly courseService: CourseService,
+    private readonly examService: ExamService,
   ) {}
 
   @Roles(Role.ADMIN, Role.STUDENT)
@@ -35,9 +39,10 @@ export class StudentController {
     return this.studentService.createBulk(students);
   }
 
+  @Roles(Role.STUDENT)
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
-    return user;
+    return this.studentService.findOne(user.id);
   }
 
   // Get own attendance
@@ -45,6 +50,20 @@ export class StudentController {
   @Get('attendance')
   myAttendance(@CurrentUser() user: AuthenticatedUser) {
     return this.attendanceService.findByStudent(user.id);
+  }
+
+  // Get own courses
+  @Roles(Role.STUDENT)
+  @Get('courses')
+  myCourses(@CurrentUser() user: AuthenticatedUser) {
+    return this.courseService.findByStudent(user.id);
+  }
+
+  // Get own exam results
+  @Roles(Role.STUDENT)
+  @Get('exams')
+  myExams(@CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findByStudent(user.id);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)

@@ -391,6 +391,39 @@ describe('CourseService', () => {
     });
   });
 
+  describe('findByStudent', () => {
+    it('should propagate NotFoundException when the student does not exist', async () => {
+      studentService.findOne.mockRejectedValue(new NotFoundException());
+
+      await expect(service.findByStudent('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.course.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should return the student enrolled courses with only the teacher included', async () => {
+      studentService.findOne.mockResolvedValue({ id: 'student-1' });
+      prisma.course.findMany.mockResolvedValue([mockCourse]);
+
+      const result = await service.findByStudent('student-1');
+
+      expect(prisma.course.findMany).toHaveBeenCalledWith({
+        where: { students: { some: { id: 'student-1' } } },
+        include: { teacher: true },
+      });
+      expect(result).toEqual({ total: 1, data: [mockCourse] });
+    });
+
+    it('should return an empty list for a student with no courses', async () => {
+      studentService.findOne.mockResolvedValue({ id: 'student-1' });
+      prisma.course.findMany.mockResolvedValue([]);
+
+      const result = await service.findByStudent('student-1');
+
+      expect(result).toEqual({ total: 0, data: [] });
+    });
+  });
+
   describe('findBySemester', () => {
     it('should return courses matching the semester', async () => {
       prisma.course.findMany.mockResolvedValue([mockCourse]);

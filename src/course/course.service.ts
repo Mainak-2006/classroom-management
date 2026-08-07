@@ -329,6 +329,21 @@ export class CourseService {
     };
   }
 
+  // Find courses a student is enrolled in
+  async findByStudent(studentId: string) {
+    await this.studentService.findOne(studentId);
+
+    const courses = await this.prisma.course.findMany({
+      where: { students: { some: { id: studentId } } },
+      include: { teacher: true },
+    });
+
+    return {
+      total: courses.length,
+      data: courses,
+    };
+  }
+
   // Find courses by semester
   async findBySemester(semester: number) {
     const courses = await this.prisma.course.findMany({
