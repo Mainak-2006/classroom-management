@@ -1,12 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import {
+  CreateStudentDto,
+  Gender as StudentGender,
+} from '../student/dto/create-student.dto';
+import {
+  CreateTeacherDto,
+  Gender as TeacherGender,
+} from '../teacher/dto/create-teacher.dto';
 import { StudentService } from '../student/student.service';
 import { TeacherService } from '../teacher/teacher.service';
 import { AdminService } from '../admin/admin.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenStore } from './tokens/refresh-token-store.service';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, ConflictException } from '@nestjs/common';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -47,10 +56,12 @@ describe('AuthService', () => {
   beforeEach(async () => {
     studentService = {
       validateStudent: jest.fn(),
+      create: jest.fn(),
     };
 
     teacherService = {
       validateTeacher: jest.fn(),
+      create: jest.fn(),
     };
 
     adminService = {
@@ -185,6 +196,99 @@ describe('AuthService', () => {
 
       expect(teacherService.validateTeacher).not.toHaveBeenCalled();
       expect(result.user.role).toBe('student');
+    });
+  });
+
+  describe('register', () => {
+    const studentInput: CreateStudentDto = {
+      firstName: 'Test',
+      lastName: 'Student',
+      email: 'student@example.com',
+      phone: '+1234567890',
+      dateOfBirth: '2000-01-01',
+      gender: StudentGender.MALE,
+      rollNumber: 'S001',
+      registrationNumber: 'R001',
+      department: 'CS',
+      semester: 1,
+      password: 'password123',
+    };
+
+    const teacherInput: CreateTeacherDto = {
+      firstName: 'Test',
+      lastName: 'Teacher',
+      email: 'teacher@example.com',
+      phone: '+1234567890',
+      dateOfBirth: '1985-01-01',
+      gender: TeacherGender.FEMALE,
+      employeeId: 'T001',
+      department: 'CS',
+      designation: 'Professor',
+      qualification: 'PhD',
+      password: 'password123',
+    };
+
+    it('should create a student and issue tokens with role student', async () => {
+      (studentService.create as jest.Mock).mockResolvedValue({
+        message: 'Student created successfully',
+        data: {
+          id: '1',
+          email: 'student@example.com',
+          firstName: 'Test',
+        },
+      });
+
+      const dto: RegisterDto = {
+        role: 'student',
+        student: studentInput,
+      };
+
+      const result = await service.register(dto);
+
+      expect(studentService.create).toHaveBeenCalledWith(dto.student);
+      expect(teacherService.create).not.toHaveBeenCalled();
+      expect(jwtService.sign).toHaveBeenCalledTimes(2);
+      expect(result.user.role).toBe('student');
+      expect(result.user.id).toBe('1');
+    });
+
+    it('should create a teacher account and issue tokens with role teacher', async () => {
+      (teacherService.create as jest.Mock).mockResolvedValue({
+        message: 'Teacher created successfully',
+        data: {
+          id: '2',
+          email: 'teacher@example.com',
+          employeeId: 'T001',
+        },
+      });
+
+      const dto: RegisterDto = {
+        role: 'teacher',
+        teacher: teacherInput,
+      };
+
+      const result = await service.register(dto);
+
+      expect(teacherService.create).toHaveBeenCalledWith(dto.teacher);
+      expect(studentService.create).not.toHaveBeenCalled();
+      expect(result.user.role).toBe('teacher');
+      expect(result.user.id).toBe('2');
+    });
+
+    it('should propagate a ConflictException from the create service', async () => {
+      (studentService.create as jest.Mock).mockRejectedValue(
+        new ConflictException(
+          'Student with this email or roll number already exists.',
+        ),
+      );
+
+      const dto: RegisterDto = {
+        role: 'student',
+        student: studentInput,
+      };
+
+      await expect(service.register(dto)).rejects.toThrow(ConflictException);
+      expect(jwtService.sign).not.toHaveBeenCalled();
     });
   });
 

@@ -13,6 +13,7 @@ import { UserRole } from './enums/role.enum';
 import { JWT_CONSTANTS } from './jwt.constants';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshTokenStore } from './tokens/refresh-token-store.service';
+import { RegisterDto } from './dto/register.dto';
 
 interface AuthUser {
   id: string;
@@ -59,6 +60,17 @@ export class AuthService {
     }
 
     throw new UnauthorizedException('Invalid email or password.');
+  }
+
+  async register(dto: RegisterDto) {
+    const result =
+      dto.role === 'student'
+        ? await this.studentService.create(dto.student)
+        : await this.teacherService.create(dto.teacher);
+
+    const { id, email } = result.data;
+
+    return this.issueTokens({ id, email }, dto.role);
   }
 
   refresh(refreshToken: string) {

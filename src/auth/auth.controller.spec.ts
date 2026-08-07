@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import {
+  CreateStudentDto,
+  Gender as StudentGender,
+} from '../student/dto/create-student.dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -8,6 +13,7 @@ describe('AuthController', () => {
 
   const mockAuthService = {
     login: jest.fn(),
+    register: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
   };
@@ -42,6 +48,35 @@ describe('AuthController', () => {
 
       expect(authService.login).toHaveBeenCalledWith(args.email, args.password);
       expect(result).toEqual({ accessToken: 'at', refreshToken: 'rt' });
+    });
+  });
+
+  describe('register', () => {
+    it('should delegate the register DTO to the service', async () => {
+      const student: CreateStudentDto = {
+        firstName: 'Test',
+        lastName: 'Student',
+        email: 'a@b.com',
+        phone: '+1234567890',
+        dateOfBirth: '2000-01-01',
+        gender: StudentGender.MALE,
+        rollNumber: 'S001',
+        registrationNumber: 'R001',
+        department: 'CS',
+        semester: 1,
+        password: 'password123',
+      };
+      const args: RegisterDto = { role: 'student', student };
+      (authService.register as jest.Mock).mockResolvedValue({
+        accessToken: 'at',
+        refreshToken: 'rt',
+        user: { id: '1', email: 'a@b.com', role: 'student' },
+      });
+
+      const result = await controller.register(args);
+
+      expect(authService.register).toHaveBeenCalledWith(args);
+      expect(result.user.role).toBe('student');
     });
   });
 
