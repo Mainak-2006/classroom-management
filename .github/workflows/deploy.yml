@@ -25,15 +25,28 @@ jobs:
         run: npx prisma generate
 
       - name: Diagnose DB connectivity
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "runner egress IP: $(curl -4 -sS --max-time 10 https://api.ipify.org || echo failed)"
-          echo "--- DNS ---"
-          getent hosts pooled.db.prisma.io || echo "dns failed"
+          echo "--- URL shape ---"
+          node -e '
+            const u = new URL(process.env.DATABASE_URL);
+            console.log("protocol:", u.protocol);
+            console.log("host:", u.host);
+            console.log("user:", (u.username||"").slice(0,20)+"...");
+            console.log("database:", (u.pathname||"").replace(/^\//,""));
+            console.log("query:", u.search.replace(/password=([^&]*)/gi, "password=***"));
+          '
           echo "--- TCP test ---"
           timeout 10 bash -c 'cat < /dev/null > /dev/tcp/pooled.db.prisma.io/5432' && echo "TCP OK" || echo "TCP FAIL"
-          echo "--- direct host ---"
-          getent hosts db.prisma.io || echo "direct dns failed"
-          timeout 10 bash -c 'cat < /dev/null > /dev/tcp/db.prisma.io/5432' && echo "TCP direct OK" || echo "TCP direct FAIL"
+          echo "--- pg connect test ---"
+          node -e '
+            const { Client } = require("pg");
+            const c = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 });
+            c.connect().then(()=>{ console.log("PG CONNECT OK"); return c.end(); })
+              .catch(e=>{ console.log("PG CONNECT FAIL:", e.code || "", e.message || e); process.exit(1); });
+          ' || true
 
       - name: Apply production migrations
         env:
