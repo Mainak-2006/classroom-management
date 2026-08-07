@@ -331,8 +331,20 @@ describe('ExamService', () => {
       expect(studentService.findOne).toHaveBeenCalledWith('student-1');
       expect(prisma.examSubmission.findMany).toHaveBeenCalledWith({
         where: { studentId: 'student-1' },
+        include: { exam: { include: { course: true } } },
       });
       expect(result).toEqual({ total: 1, data: [mockSubmission] });
+    });
+
+    it('should throw NotFoundException when the student does not exist', async () => {
+      studentService.findOne.mockRejectedValue(
+        new NotFoundException('Student not found'),
+      );
+
+      await expect(service.findByStudent('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.examSubmission.findMany).not.toHaveBeenCalled();
     });
   });
 });
