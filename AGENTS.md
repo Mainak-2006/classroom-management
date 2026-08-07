@@ -30,7 +30,7 @@ Data lives in a **PostgreSQL** database (Prisma 7, `prisma-client-js` generator 
 ## Conventions
 - Controllers return an envelope: `{ message, data, total? }`.
 - `src/auth/decorators` + `src/auth/guards` + `src/auth/interfaces` hold cross-cutting auth; re-export patterns from them rather than duplicating.
-- Entity class naming is inconsistent: `admin/attendance/assignment/exam` use plain `*Entity` classes; `course/teacher/student` use TypeORM-decorated classes. Neither is persisted.
+- Entity classes are plain (decorator-free) per-module classes (`*Entity` under `entities/`) used only for typing; they are not persisted — Prisma models are the source of truth.
 - Global `ValidationPipe` in `src/main.ts` sets `whitelist + transform + forbidNonWhitelisted` — DTOs are strictly enforced, unknown body keys 400.
 - `@nestjs/graphql` is installed but unused — do not route GraphQL work here.
 - Repo has no commits yet; no CI, no pre-commit hooks.
