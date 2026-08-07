@@ -20,7 +20,7 @@ Data lives in a **PostgreSQL** database (Prisma 7, `prisma-client-js` generator 
 
 ## Auth / routing conventions
 - `JwtAuthGuard` and `RolesGuard` are registered as global `APP_GUARD`s, so **every route is JWT-protected by default**. Make a route public with `@Public()`; restrict with `@Roles(Role.ADMIN | Role.TEACHER | Role.STUDENT)`.
-- One login endpoint (`POST /auth/login`) resolves a single account type across Admin/Teacher/Student services in that order. Access JWT expires in `15m`; refresh token `7d` with rotation; both signed with issuer `nest-classroom`. Refresh-token validity + access-token blacklist are also in-memory (`RefreshTokenStore`).
+- One login endpoint (`POST /auth/login`) resolves a single account type across Admin/Teacher/Student services in that order. `POST /auth/register` (public) allows self-registration for `student`/`teacher` via `RegisterDto` (role-discriminated nested `CreateStudentDto`/`CreateTeacherDto`); it reuses the `StudentService`/`TeacherService` `create()` methods and returns an issued token pair. Access JWT expires in `15m`; refresh token `7d` with rotation; both signed with issuer `nest-classroom`. Refresh-token validity + access-token blacklist are also in-memory (`RefreshTokenStore`).
 - Use `@CurrentUser()` to read the authenticated user (type `AuthenticatedUser`).
 
 ## Config
