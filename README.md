@@ -40,7 +40,7 @@ A production-style **NestJS 11** REST API for managing a classroom: teachers, st
 ### Prerequisites
 
 - **Node.js** 20+ and npm
-- A **PostgreSQL** database (e.g. Prisma Postgres, Neon, or any Postgres). The connection string goes in `DATABASE_URL`.
+- Two **PostgreSQL** databases (e.g. Prisma Postgres, Neon, or any Postgres): one for local dev + tests, one for production.
 
 ### 1. Install dependencies
 
@@ -50,27 +50,31 @@ npm install
 
 ### 2. Configure environment
 
+The app loads **`.env.test` for local dev and Jest runs**, and **`.env` for production**.
+
 ```bash
-cp .env.example .env
+cp .env.example .env          # production (or provided by the platform in prod)
+cp .env.test.example .env.test # local dev + tests
 ```
 
-Then edit `.env` and **change the JWT secrets** for anything beyond local use.
+Then edit both files and **change the JWT secrets** for anything beyond local use.
 
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
-| `DATABASE_URL` | — | PostgreSQL connection string (**required**) |
+| `DATABASE_URL` (`.env`) | — | **Production** PostgreSQL connection string (**required**) |
+| `DATABASE_URL` (`.env.test`) | — | **Local/test** PostgreSQL connection string (**required**) |
 | `JWT_SECRET` | — | Access-token signing secret (**required**) |
 | `JWT_REFRESH_SECRET` | — | Refresh-token signing secret (**required**) |
 | `SEED_DEFAULT_ADMIN` | `true` | Auto-create a default admin on boot |
 | `SEED_ADMIN_EMAIL` | `admin@example.com` | Seeded admin email |
 | `SEED_ADMIN_PASSWORD` | `admin123` | Seeded admin password |
 
-### 3. Create the schema and seed
+### 3. Create the schema and seed (local/test DB)
 
 ```bash
-npx prisma migrate dev --name init   # create tables from prisma/schema.prisma
-npx prisma db seed                   # create the default admin/teacher/student/course
+npm run db:migrate:test       # `prisma migrate dev` against `.env.test`
+npm run db:seed:test          # seed the default admin/teacher/student/course
 ```
 
 `npx prisma generate` runs automatically on `migrate dev` (or manually after schema edits).
