@@ -24,6 +24,17 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma generate
 
+      - name: Diagnose DB connectivity
+        run: |
+          echo "runner egress IP: $(curl -4 -sS --max-time 10 https://api.ipify.org || echo failed)"
+          echo "--- DNS ---"
+          getent hosts pooled.db.prisma.io || echo "dns failed"
+          echo "--- TCP test ---"
+          timeout 10 bash -c 'cat < /dev/null > /dev/tcp/pooled.db.prisma.io/5432' && echo "TCP OK" || echo "TCP FAIL"
+          echo "--- direct host ---"
+          getent hosts db.prisma.io || echo "direct dns failed"
+          timeout 10 bash -c 'cat < /dev/null > /dev/tcp/db.prisma.io/5432' && echo "TCP direct OK" || echo "TCP direct FAIL"
+
       - name: Apply production migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
