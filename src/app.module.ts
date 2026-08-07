@@ -16,6 +16,7 @@ import { ExamModule } from './exam/exam.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'production' ? '.env' : '.env.test',
     }),
     PrismaModule,
     TeacherModule,

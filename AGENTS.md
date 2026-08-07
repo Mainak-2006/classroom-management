@@ -24,7 +24,9 @@ Data lives in a **PostgreSQL** database (Prisma 7, `prisma-client-js` generator 
 - Use `@CurrentUser()` to read the authenticated user (type `AuthenticatedUser`).
 
 ## Config
-- Copy `.env.example` → `.env` (`.env` is gitignored; `DATABASE_URL` + `JWT_SECRET`/`JWT_REFRESH_SECRET` are required at boot).
+- Copy `.env.example` → `.env` (production; `.env` is gitignored) and `.env.test.example` → `.env.test` (local dev + tests; `.env.test` is gitignored). `DATABASE_URL` + `JWT_SECRET`/`JWT_REFRESH_SECRET` are required at boot.
+- Env selection: `ConfigModule` in `src/app.module.ts` loads `.env.test` unless `NODE_ENV=production`, in which case it loads `.env`. Jest sets `NODE_ENV=test` automatically, so unit + e2e suites use `.env.test`. Local `npm run start:dev` also uses `.env.test`.
+- Prisma CLI/scripts (`prisma.config.ts`, `lib/prisma.ts`, `scripts/verify-prisma.ts`) read `.env` via `dotenv/config`; for local/test DB work use the npm scripts `db:migrate:test` / `db:seed:test` / `db:verify:test` (they set `DOTENV_CONFIG_PATH=.env.test`).
 - On startup `SeedService` (`src/seed/seed.service.ts`) auto-creates a default admin from `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` (defaults `admin@example.com` / `admin123`) unless `SEED_DEFAULT_ADMIN=false`. To get an admin to log in with, this must run (or use `npx prisma db seed`).
 
 ## Conventions
