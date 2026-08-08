@@ -1,11 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- jest matchers return any */
 import { AssignmentService } from './assignment.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CourseService } from '../course/course.service';
 import { AssignmentStatus } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+
+const adminRequester: AuthenticatedUser = {
+  id: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin',
+  jti: 'jti-admin',
+};
 
 const mockAssignment = {
   id: 'assignment-1',
@@ -32,7 +40,10 @@ describe('AssignmentService', () => {
       delete: jest.Mock;
     };
   };
-  let courseService: { findOne: jest.Mock };
+  let courseService: {
+    findOne: jest.Mock;
+    assertTeacherOwnsCourse: jest.Mock;
+  };
 
   const createDto = {
     title: 'Binary Search Trees',
@@ -54,6 +65,7 @@ describe('AssignmentService', () => {
 
     courseService = {
       findOne: jest.fn().mockResolvedValue({ id: 'course-1' }),
+      assertTeacherOwnsCourse: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,9 +83,12 @@ describe('AssignmentService', () => {
     it('should validate the course and default the status to DRAFT', async () => {
       prisma.assignment.create.mockResolvedValue(mockAssignment);
 
-      const result = await service.create(createDto);
+      const result = await service.create(createDto, adminRequester);
 
-      expect(courseService.findOne).toHaveBeenCalledWith('course-1');
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
+      );
       expect(prisma.assignment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           title: 'Binary Search Trees',
@@ -86,12 +101,23 @@ describe('AssignmentService', () => {
     });
 
     it('should propagate NotFoundException when the course is missing', async () => {
-      courseService.findOne.mockRejectedValue(
+      courseService.assertTeacherOwnsCourse.mockRejectedValue(
         new NotFoundException('Course not found'),
       );
 
-      await expect(service.create(createDto)).rejects.toThrow(
+      await expect(service.create(createDto, adminRequester)).rejects.toThrow(
         NotFoundException,
+      );
+      expect(prisma.assignment.create).not.toHaveBeenCalled();
+    });
+
+    it('should propagate ForbiddenException when a teacher creates an assignment for a course they do not teach', async () => {
+      courseService.assertTeacherOwnsCourse.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(service.create(createDto, adminRequester)).rejects.toThrow(
+        ForbiddenException,
       );
       expect(prisma.assignment.create).not.toHaveBeenCalled();
     });
@@ -130,7 +156,7 @@ describe('AssignmentService', () => {
       prisma.assignment.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.update('missing', { title: 'New title' }),
+        service.update('missing', { title: 'New title' }, adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -138,20 +164,33 @@ describe('AssignmentService', () => {
       prisma.assignment.findUnique.mockResolvedValue(mockAssignment);
       prisma.assignment.update.mockResolvedValue(mockAssignment);
 
-      await service.update('assignment-1', { title: 'New title' });
+      await service.update(
+        'assignment-1',
+        { title: 'New title' },
+        adminRequester,
+      );
       expect(courseService.findOne).not.toHaveBeenCalled();
 
-      await service.update('assignment-1', { courseId: 'course-2' });
-      expect(courseService.findOne).toHaveBeenCalledWith('course-2');
+      await service.update(
+        'assignment-1',
+        { courseId: 'course-2' },
+        adminRequester,
+      );
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-2',
+      );
     });
 
     it('should convert dueDate and return an envelope', async () => {
       prisma.assignment.findUnique.mockResolvedValue(mockAssignment);
       prisma.assignment.update.mockResolvedValue(mockAssignment);
 
-      const result = await service.update('assignment-1', {
-        dueDate: '2026-02-01',
-      });
+      const result = await service.update(
+        'assignment-1',
+        { dueDate: '2026-02-01' },
+        adminRequester,
+      );
 
       expect(prisma.assignment.update).toHaveBeenCalledWith({
         where: { id: 'assignment-1' },
@@ -165,7 +204,7 @@ describe('AssignmentService', () => {
     it('should throw NotFoundException when the assignment does not exist', async () => {
       prisma.assignment.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove('missing')).rejects.toThrow(
+      await expect(service.remove('missing', adminRequester)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -174,7 +213,7 @@ describe('AssignmentService', () => {
       prisma.assignment.findUnique.mockResolvedValue(mockAssignment);
       prisma.assignment.delete.mockResolvedValue(mockAssignment);
 
-      const result = await service.remove('assignment-1');
+      const result = await service.remove('assignment-1', adminRequester);
 
       expect(prisma.assignment.delete).toHaveBeenCalledWith({
         where: { id: 'assignment-1' },

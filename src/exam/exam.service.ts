@@ -8,6 +8,7 @@ import { CreateExamSubmissionDto } from './dto/create-exam-submission.dto';
 import { UpdateExamSubmissionDto } from './dto/update-exam-submission.dto';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @Injectable()
 export class ExamService {
@@ -17,8 +18,11 @@ export class ExamService {
     private readonly studentService: StudentService,
   ) {}
 
-  async create(createExamDto: CreateExamDto) {
-    await this.courseService.findOne(createExamDto.courseId);
+  async create(createExamDto: CreateExamDto, requester: AuthenticatedUser) {
+    await this.courseService.assertTeacherOwnsCourse(
+      requester,
+      createExamDto.courseId,
+    );
 
     const exam = await this.prisma.exam.create({
       data: {
@@ -59,7 +63,11 @@ export class ExamService {
     return exam;
   }
 
-  async update(id: string, updateExamDto: UpdateExamDto) {
+  async update(
+    id: string,
+    updateExamDto: UpdateExamDto,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.exam.findUnique({ where: { id } });
 
     if (!existing) {
@@ -67,7 +75,15 @@ export class ExamService {
     }
 
     if (updateExamDto.courseId) {
-      await this.courseService.findOne(updateExamDto.courseId);
+      await this.courseService.assertTeacherOwnsCourse(
+        requester,
+        updateExamDto.courseId,
+      );
+    } else {
+      await this.courseService.assertTeacherOwnsCourse(
+        requester,
+        existing.courseId,
+      );
     }
 
     const { examDate, ...rest } = updateExamDto;
@@ -88,12 +104,17 @@ export class ExamService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester: AuthenticatedUser) {
     const existing = await this.prisma.exam.findUnique({ where: { id } });
 
     if (!existing) {
       throw new NotFoundException('Exam not found');
     }
+
+    await this.courseService.assertTeacherOwnsCourse(
+      requester,
+      existing.courseId,
+    );
 
     const deletedExam = await this.prisma.exam.delete({ where: { id } });
 
@@ -128,8 +149,10 @@ export class ExamService {
   async submit(
     examId: string,
     createExamSubmissionDto: CreateExamSubmissionDto,
+    requester: AuthenticatedUser,
   ) {
-    await this.findOne(examId);
+    const exam = await this.findOne(examId);
+    await this.courseService.assertTeacherOwnsCourse(requester, exam.courseId);
     await this.studentService.findOne(createExamSubmissionDto.studentId);
 
     const submission = await this.prisma.examSubmission.create({
@@ -152,14 +175,21 @@ export class ExamService {
   async updateSubmission(
     id: string,
     updateExamSubmissionDto: UpdateExamSubmissionDto,
+    requester: AuthenticatedUser,
   ) {
     const existing = await this.prisma.examSubmission.findUnique({
       where: { id },
+      include: { exam: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Exam submission not found');
     }
+
+    await this.courseService.assertTeacherOwnsCourse(
+      requester,
+      existing.exam.courseId,
+    );
 
     if (updateExamSubmissionDto.studentId) {
       await this.studentService.findOne(updateExamSubmissionDto.studentId);

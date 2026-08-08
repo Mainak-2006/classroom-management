@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CourseController } from './course.controller';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 const validCourseDto: CreateCourseDto = {
   name: 'Introduction to Programming',
@@ -13,6 +14,13 @@ const validCourseDto: CreateCourseDto = {
   isActive: true,
 };
 
+const requester: AuthenticatedUser = {
+  id: 'teacher-1',
+  email: 'teacher@example.com',
+  role: 'teacher',
+  jti: 'jti-1',
+};
+
 describe('CourseController', () => {
   let controller: CourseController;
   let courseService: {
@@ -20,6 +28,7 @@ describe('CourseController', () => {
     createBulk: jest.Mock;
     findAll: jest.Mock;
     findOne: jest.Mock;
+    findByTeacher: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
     assignTeacherToCourse: jest.Mock;
@@ -38,6 +47,7 @@ describe('CourseController', () => {
       createBulk: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      findByTeacher: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
       assignTeacherToCourse: jest.fn(),
@@ -63,8 +73,11 @@ describe('CourseController', () => {
   });
 
   it('POST / should delegate to create', async () => {
-    await controller.create(validCourseDto);
-    expect(courseService.create).toHaveBeenCalledWith(validCourseDto);
+    await controller.create(validCourseDto, requester);
+    expect(courseService.create).toHaveBeenCalledWith(
+      validCourseDto,
+      requester,
+    );
   });
 
   it('POST /bulk should delegate to createBulk', async () => {
@@ -83,45 +96,55 @@ describe('CourseController', () => {
   });
 
   it('PATCH /:id should delegate to update', async () => {
-    await controller.update('course-1', { name: 'Updated' });
-    expect(courseService.update).toHaveBeenCalledWith('course-1', {
-      name: 'Updated',
-    });
+    await controller.update('course-1', { name: 'Updated' }, requester);
+    expect(courseService.update).toHaveBeenCalledWith(
+      'course-1',
+      { name: 'Updated' },
+      requester,
+    );
   });
 
   it('DELETE /:id should delegate to remove', async () => {
-    await controller.remove('course-1');
-    expect(courseService.remove).toHaveBeenCalledWith('course-1');
+    await controller.remove('course-1', requester);
+    expect(courseService.remove).toHaveBeenCalledWith('course-1', requester);
   });
 
   it('POST /:id/teacher/:teacherId should delegate to assignTeacherToCourse', async () => {
-    await controller.assignTeacherToCourse('course-1', 'teacher-1');
+    await controller.assignTeacherToCourse('course-1', 'teacher-1', requester);
     expect(courseService.assignTeacherToCourse).toHaveBeenCalledWith(
       'course-1',
       'teacher-1',
+      requester,
     );
   });
 
   it('DELETE /:id/teacher should delegate to removeTeacherFromCourse', async () => {
-    await controller.removeTeacherFromCourse('course-1');
+    await controller.removeTeacherFromCourse('course-1', requester);
     expect(courseService.removeTeacherFromCourse).toHaveBeenCalledWith(
       'course-1',
+      requester,
     );
   });
 
   it('POST /:id/students/:studentId should delegate to addStudentToCourse', async () => {
-    await controller.addStudentToCourse('course-1', 'student-1');
+    await controller.addStudentToCourse('course-1', 'student-1', requester);
     expect(courseService.addStudentToCourse).toHaveBeenCalledWith(
       'course-1',
       'student-1',
+      requester,
     );
   });
 
   it('DELETE /:id/students/:studentId should delegate to removeStudentFromCourse', async () => {
-    await controller.removeStudentFromCourse('course-1', 'student-1');
+    await controller.removeStudentFromCourse(
+      'course-1',
+      'student-1',
+      requester,
+    );
     expect(courseService.removeStudentFromCourse).toHaveBeenCalledWith(
       'course-1',
       'student-1',
+      requester,
     );
   });
 
@@ -143,5 +166,10 @@ describe('CourseController', () => {
   it('GET /department/:department should delegate to findByDepartment', async () => {
     await controller.findByDepartment('cs');
     expect(courseService.findByDepartment).toHaveBeenCalledWith('cs');
+  });
+
+  it('GET /teacher/:teacherId should delegate to findByTeacher', async () => {
+    await controller.findByTeacher('teacher-1');
+    expect(courseService.findByTeacher).toHaveBeenCalledWith('teacher-1');
   });
 });

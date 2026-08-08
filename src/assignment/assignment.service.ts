@@ -5,6 +5,7 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { AssignmentStatus } from '@prisma/client';
 import { CourseService } from '../course/course.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @Injectable()
 export class AssignmentService {
@@ -13,8 +14,14 @@ export class AssignmentService {
     private readonly courseService: CourseService,
   ) {}
 
-  async create(createAssignmentDto: CreateAssignmentDto) {
-    await this.courseService.findOne(createAssignmentDto.courseId);
+  async create(
+    createAssignmentDto: CreateAssignmentDto,
+    requester: AuthenticatedUser,
+  ) {
+    await this.courseService.assertTeacherOwnsCourse(
+      requester,
+      createAssignmentDto.courseId,
+    );
 
     const assignment = await this.prisma.assignment.create({
       data: {
@@ -56,7 +63,11 @@ export class AssignmentService {
     return assignment;
   }
 
-  async update(id: string, updateAssignmentDto: UpdateAssignmentDto) {
+  async update(
+    id: string,
+    updateAssignmentDto: UpdateAssignmentDto,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.assignment.findUnique({
       where: { id },
     });
@@ -66,7 +77,15 @@ export class AssignmentService {
     }
 
     if (updateAssignmentDto.courseId) {
-      await this.courseService.findOne(updateAssignmentDto.courseId);
+      await this.courseService.assertTeacherOwnsCourse(
+        requester,
+        updateAssignmentDto.courseId,
+      );
+    } else {
+      await this.courseService.assertTeacherOwnsCourse(
+        requester,
+        existing.courseId,
+      );
     }
 
     const { dueDate, ...rest } = updateAssignmentDto;
@@ -90,7 +109,7 @@ export class AssignmentService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester: AuthenticatedUser) {
     const existing = await this.prisma.assignment.findUnique({
       where: { id },
     });
@@ -98,6 +117,11 @@ export class AssignmentService {
     if (!existing) {
       throw new NotFoundException('Assignment not found');
     }
+
+    await this.courseService.assertTeacherOwnsCourse(
+      requester,
+      existing.courseId,
+    );
 
     const deletedAssignment = await this.prisma.assignment.delete({
       where: { id },

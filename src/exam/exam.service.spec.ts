@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- jest matchers return any */
 import { ExamService } from './exam.service';
@@ -7,6 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
 import { ExamStatus } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+
+const adminRequester: AuthenticatedUser = {
+  id: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin',
+  jti: 'jti-admin',
+};
 
 const mockExam = {
   id: 'exam-1',
@@ -49,7 +57,10 @@ describe('ExamService', () => {
       update: jest.Mock;
     };
   };
-  let courseService: { findOne: jest.Mock };
+  let courseService: {
+    findOne: jest.Mock;
+    assertTeacherOwnsCourse: jest.Mock;
+  };
   let studentService: { findOne: jest.Mock };
 
   const createDto = {
@@ -79,6 +90,7 @@ describe('ExamService', () => {
 
     courseService = {
       findOne: jest.fn().mockResolvedValue({ id: 'course-1' }),
+      assertTeacherOwnsCourse: jest.fn().mockResolvedValue(undefined),
     };
     studentService = {
       findOne: jest.fn().mockResolvedValue({ id: 'student-1' }),
@@ -100,9 +112,12 @@ describe('ExamService', () => {
     it('should validate the course and default the status to DRAFT', async () => {
       prisma.exam.create.mockResolvedValue(mockExam);
 
-      const result = await service.create(createDto);
+      const result = await service.create(createDto, adminRequester);
 
-      expect(courseService.findOne).toHaveBeenCalledWith('course-1');
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
+      );
       expect(prisma.exam.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           title: 'Midterm Exam',
@@ -115,12 +130,23 @@ describe('ExamService', () => {
     });
 
     it('should propagate NotFoundException when the course is missing', async () => {
-      courseService.findOne.mockRejectedValue(
+      courseService.assertTeacherOwnsCourse.mockRejectedValue(
         new NotFoundException('Course not found'),
       );
 
-      await expect(service.create(createDto)).rejects.toThrow(
+      await expect(service.create(createDto, adminRequester)).rejects.toThrow(
         NotFoundException,
+      );
+      expect(prisma.exam.create).not.toHaveBeenCalled();
+    });
+
+    it('should propagate ForbiddenException when a teacher creates an exam for a course they do not teach', async () => {
+      courseService.assertTeacherOwnsCourse.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(service.create(createDto, adminRequester)).rejects.toThrow(
+        ForbiddenException,
       );
       expect(prisma.exam.create).not.toHaveBeenCalled();
     });
@@ -156,8 +182,19 @@ describe('ExamService', () => {
     it('should throw NotFoundException when the exam does not exist', async () => {
       prisma.exam.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('missing', { title: 'New' })).rejects.toThrow(
-        NotFoundException,
+      await expect(
+        service.update('missing', { title: 'New' }, adminRequester),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should enforce course ownership on the current course by default', async () => {
+      prisma.exam.findUnique.mockResolvedValue(mockExam);
+      prisma.exam.update.mockResolvedValue(mockExam);
+
+      await service.update('exam-1', { title: 'New' }, adminRequester);
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
       );
     });
 
@@ -165,18 +202,25 @@ describe('ExamService', () => {
       prisma.exam.findUnique.mockResolvedValue(mockExam);
       prisma.exam.update.mockResolvedValue(mockExam);
 
-      await service.update('exam-1', { title: 'New' });
+      await service.update('exam-1', { title: 'New' }, adminRequester);
       expect(courseService.findOne).not.toHaveBeenCalled();
 
-      await service.update('exam-1', { courseId: 'course-2' });
-      expect(courseService.findOne).toHaveBeenCalledWith('course-2');
+      await service.update('exam-1', { courseId: 'course-2' }, adminRequester);
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-2',
+      );
     });
 
     it('should convert examDate and return an envelope', async () => {
       prisma.exam.findUnique.mockResolvedValue(mockExam);
       prisma.exam.update.mockResolvedValue(mockExam);
 
-      await service.update('exam-1', { examDate: '2026-03-01' });
+      await service.update(
+        'exam-1',
+        { examDate: '2026-03-01' },
+        adminRequester,
+      );
 
       expect(prisma.exam.update).toHaveBeenCalledWith({
         where: { id: 'exam-1' },
@@ -216,14 +260,19 @@ describe('ExamService', () => {
       prisma.exam.findUnique.mockResolvedValue(mockExam);
       prisma.examSubmission.create.mockResolvedValue(mockSubmission);
 
-      const result = await service.submit('exam-1', {
-        studentId: 'student-1',
-        score: 92,
-      });
+      const result = await service.submit(
+        'exam-1',
+        { studentId: 'student-1', score: 92 },
+        adminRequester,
+      );
 
       expect(prisma.exam.findUnique).toHaveBeenCalledWith({
         where: { id: 'exam-1' },
       });
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
+      );
       expect(studentService.findOne).toHaveBeenCalledWith('student-1');
       expect(prisma.examSubmission.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -240,7 +289,11 @@ describe('ExamService', () => {
       prisma.exam.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.submit('exam-1', { studentId: 'student-1', score: 92 }),
+        service.submit(
+          'exam-1',
+          { studentId: 'student-1', score: 92 },
+          adminRequester,
+        ),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.examSubmission.create).not.toHaveBeenCalled();
     });
@@ -249,11 +302,15 @@ describe('ExamService', () => {
       prisma.exam.findUnique.mockResolvedValue(mockExam);
       prisma.examSubmission.create.mockResolvedValue(mockSubmission);
 
-      await service.submit('exam-1', {
-        studentId: 'student-1',
-        score: 92,
-        submittedAt: '2026-02-01T09:00:00.000Z',
-      });
+      await service.submit(
+        'exam-1',
+        {
+          studentId: 'student-1',
+          score: 92,
+          submittedAt: '2026-02-01T09:00:00.000Z',
+        },
+        adminRequester,
+      );
 
       expect(prisma.examSubmission.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -268,30 +325,44 @@ describe('ExamService', () => {
       prisma.examSubmission.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updateSubmission('missing', { score: 100 }),
+        service.updateSubmission('missing', { score: 100 }, adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should validate the student only when studentId changes', async () => {
-      prisma.examSubmission.findUnique.mockResolvedValue(mockSubmission);
+      prisma.examSubmission.findUnique.mockResolvedValue({
+        ...mockSubmission,
+        exam: mockExam,
+      });
       prisma.examSubmission.update.mockResolvedValue(mockSubmission);
 
-      await service.updateSubmission('submission-1', { score: 100 });
+      await service.updateSubmission(
+        'submission-1',
+        { score: 100 },
+        adminRequester,
+      );
       expect(studentService.findOne).not.toHaveBeenCalled();
 
-      await service.updateSubmission('submission-1', {
-        studentId: 'student-2',
-      });
+      await service.updateSubmission(
+        'submission-1',
+        { studentId: 'student-2' },
+        adminRequester,
+      );
       expect(studentService.findOne).toHaveBeenCalledWith('student-2');
     });
 
     it('should convert submittedAt and return an envelope', async () => {
-      prisma.examSubmission.findUnique.mockResolvedValue(mockSubmission);
+      prisma.examSubmission.findUnique.mockResolvedValue({
+        ...mockSubmission,
+        exam: mockExam,
+      });
       prisma.examSubmission.update.mockResolvedValue(mockSubmission);
 
-      const result = await service.updateSubmission('submission-1', {
-        submittedAt: '2026-02-02T08:00:00.000Z',
-      });
+      const result = await service.updateSubmission(
+        'submission-1',
+        { submittedAt: '2026-02-02T08:00:00.000Z' },
+        adminRequester,
+      );
 
       expect(prisma.examSubmission.update).toHaveBeenCalledWith({
         where: { id: 'submission-1' },

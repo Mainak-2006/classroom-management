@@ -16,6 +16,8 @@ import { UpdateExamSubmissionDto } from './dto/update-exam-submission.dto';
 import { ExamStatus } from './entities/exam.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @Controller('exam')
 export class ExamController {
@@ -23,8 +25,11 @@ export class ExamController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post()
-  create(@Body() createExamDto: CreateExamDto) {
-    return this.examService.create(createExamDto);
+  create(
+    @Body() createExamDto: CreateExamDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.examService.create(createExamDto, user);
   }
 
   @Get()
@@ -34,14 +39,18 @@ export class ExamController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateExamDto: UpdateExamDto) {
-    return this.examService.update(id, updateExamDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateExamDto: UpdateExamDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.examService.update(id, updateExamDto, user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.examService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.remove(id, user);
   }
 
   // Find exams by course
@@ -68,8 +77,9 @@ export class ExamController {
   submit(
     @Param('id') id: string,
     @Body() createExamSubmissionDto: CreateExamSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.examService.submit(id, createExamSubmissionDto);
+    return this.examService.submit(id, createExamSubmissionDto, user);
   }
 
   // Find submissions for an exam
@@ -83,10 +93,12 @@ export class ExamController {
   updateSubmission(
     @Param('submissionId') submissionId: string,
     @Body() updateExamSubmissionDto: UpdateExamSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.examService.updateSubmission(
       submissionId,
       updateExamSubmissionDto,
+      user,
     );
   }
 

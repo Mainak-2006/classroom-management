@@ -12,6 +12,7 @@ import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CreateAttendanceDto } from '../attendance/dto/create-attendance.dto';
+import { CourseService } from '../course/course.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
@@ -22,6 +23,7 @@ export class TeacherController {
   constructor(
     private readonly teacherService: TeacherService,
     private readonly attendanceService: AttendanceService,
+    private readonly courseService: CourseService,
   ) {}
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -39,6 +41,13 @@ export class TeacherController {
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
     return user;
+  }
+
+  // Get own courses
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @Get('courses')
+  myCourses(@CurrentUser() user: AuthenticatedUser) {
+    return this.courseService.findByTeacher(user.id);
   }
 
   // Mark attendance for a course
