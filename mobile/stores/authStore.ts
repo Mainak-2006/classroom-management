@@ -26,35 +26,55 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshToken: null,
 
   hydrate: async () => {
-    const [accessToken, refreshToken, userRaw] = await Promise.all([
-      getItem(STORAGE_KEYS.accessToken),
-      getItem(STORAGE_KEYS.refreshToken),
-      getItem(STORAGE_KEYS.user),
-    ]);
+    try {
+      const [accessToken, refreshToken, userRaw] = await Promise.all([
+        getItem(STORAGE_KEYS.accessToken),
+        getItem(STORAGE_KEYS.refreshToken),
+        getItem(STORAGE_KEYS.user),
+      ]);
 
-    if (accessToken && refreshToken) {
+      if (!accessToken || !refreshToken) {
+        await clearAuthStorage();
+        set({ status: "unauthenticated", user: null, accessToken: null, refreshToken: null });
+        return;
+      }
+
+      let user: AuthUser | null = null;
+      if (userRaw) {
+        try {
+          user = JSON.parse(userRaw) as AuthUser;
+        } catch {
+          user = null;
+        }
+      }
+
       setAccessToken(accessToken);
-      set({
-        status: "authenticated",
-        user: userRaw ? (JSON.parse(userRaw) as AuthUser) : null,
-        accessToken,
-        refreshToken,
-      });
-      return;
-    }
+      set({ user, accessToken, refreshToken, status: "hydrating" });
 
-    set({ status: "unauthenticated", user: null, accessToken: null, refreshToken: null });
+      const freshUser = await authService.me();
+      set({ user: freshUser, status: "authenticated" });
+      await setItem(STORAGE_KEYS.user, JSON.stringify(freshUser));
+    } catch {
+      setAccessToken(null);
+      await clearAuthStorage();
+      set({ status: "unauthenticated", user: null, accessToken: null, refreshToken: null });
+    }
   },
 
   applyAuth: async (response) => {
     const { accessToken, refreshToken, user } = response;
     setAccessToken(accessToken);
-    await Promise.all([
-      setItem(STORAGE_KEYS.accessToken, accessToken),
-      setItem(STORAGE_KEYS.refreshToken, refreshToken),
-      setItem(STORAGE_KEYS.user, JSON.stringify(user)),
-    ]);
     set({ status: "authenticated", user, accessToken, refreshToken });
+    try {
+      await Promise.all([
+        setItem(STORAGE_KEYS.accessToken, accessToken),
+        setItem(STORAGE_KEYS.refreshToken, refreshToken),
+        setItem(STORAGE_KEYS.user, JSON.stringify(user)),
+      ]);
+    } catch {
+      // In-memory state is authoritative; a storage write failure must not
+      // break the session.
+    }
   },
 
   login: async (data) => {
@@ -68,7 +88,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    const { accessToken, refreshToken } = get();
+    const { status, accessToken, refreshToken } = get();
+    if (status === "unauthenticated") {
+      return;
+    }
     if (refreshToken) {
       try {
         await authService.logout({ refreshToken, accessToken: accessToken ?? undefined });
@@ -84,9 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 setAuthHooks({
   getRefreshToken: () => useAuthStore.getState().refreshToken,
-  onTokensRefreshed: (tokens) => {
-    void useAuthStore.getState().applyAuth(tokens);
-  },
+  onTokensRefreshed: (tokens) => useAuthStore.getState().applyAuth(tokens),
   onSessionExpired: () => {
     void useAuthStore.getState().logout();
   },
