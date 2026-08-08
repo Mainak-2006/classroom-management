@@ -1,9 +1,17 @@
-import { Text, View } from "react-native";
+import { Redirect } from "expo-router";
+
+import { useAuthStore } from "../stores/authStore";
 
 export default function Index() {
-  return (
-    <View className="flex-1 items-center bg-red-100 justify-center">
-      <Text className="text-xl">Edit app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+  const status = useAuthStore((state) => state.status);
+
+  if (status === "hydrating") {
+    return null;
+  }
+
+  if (status === "authenticated") {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Redirect href="/(auth)/login" />;
 }
