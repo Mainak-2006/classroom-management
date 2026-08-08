@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from './decorators/public.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import * as authenticatedUserInterface from './interfaces/authenticated-user.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -36,5 +38,10 @@ export class AuthController {
   @HttpCode(200)
   logout(@Body() dto: LogoutDto) {
     return this.authService.logout(dto.refreshToken, dto.accessToken);
+  }
+
+  @Get('me')
+  me(@CurrentUser() user: authenticatedUserInterface.AuthenticatedUser) {
+    return user;
   }
 }

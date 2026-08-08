@@ -4,6 +4,7 @@ import { StudentService } from './student.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CourseService } from '../course/course.service';
 import { ExamService } from '../exam/exam.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 describe('StudentController', () => {
   let controller: StudentController;
@@ -12,7 +13,7 @@ describe('StudentController', () => {
   let courseService: { findByStudent: jest.Mock };
   let examService: { findByStudent: jest.Mock };
 
-  const currentUser = {
+  const currentUser: AuthenticatedUser = {
     id: 'student-1',
     email: 'student@example.com',
     role: 'student',
