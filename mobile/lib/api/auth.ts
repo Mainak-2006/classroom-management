@@ -1,23 +1,17 @@
-import { client } from "./client";
-import type {
-  AuthResponse,
-  LogoutDto,
-  LogoutResponse,
-  LoginDto,
-  RefreshTokenDto,
-  RegisterDto,
-} from "../types";
+import { ApiRequestConfig, client } from "./client";
+import type { AuthResponse, AuthUser, LogoutDto, LogoutResponse, LoginDto, RegisterDto } from "../types";
+
+const AUTH_CONFIG: ApiRequestConfig = { _skipRefresh: true };
 
 export const authService = {
   login: (data: LoginDto) =>
-    client.post<AuthResponse>("/auth/login", data).then((res) => res.data),
+    client.post<AuthResponse>("/auth/login", data, AUTH_CONFIG).then((res) => res.data),
 
   register: (data: RegisterDto) =>
-    client.post<AuthResponse>("/auth/register", data).then((res) => res.data),
-
-  refresh: (data: RefreshTokenDto) =>
-    client.post<AuthResponse>("/auth/refresh", data).then((res) => res.data),
+    client.post<AuthResponse>("/auth/register", data, AUTH_CONFIG).then((res) => res.data),
 
   logout: (data: LogoutDto) =>
-    client.post<LogoutResponse>("/auth/logout", data).then((res) => res.data),
+    client.post<LogoutResponse>("/auth/logout", data, AUTH_CONFIG).then((res) => res.data),
+
+  me: () => client.get<AuthUser>("/auth/me").then((res) => res.data),
 };

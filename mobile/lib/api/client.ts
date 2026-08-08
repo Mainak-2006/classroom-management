@@ -1,26 +1,21 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-import Constants from "expo-constants";
-
+import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import type { AuthResponse } from "../types";
 
 const DEFAULT_PORT = 3000;
 
-function resolveBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
-  if (fromEnv) return fromEnv;
-  const hostUri = Constants.expoConfig?.hostUri;
-  const host = hostUri?.split(":")[0];
-  return host ? `http://${host}:${DEFAULT_PORT}` : `http://localhost:${DEFAULT_PORT}`;
+export const baseURL = process.env.EXPO_PUBLIC_API_URL || `http://localhost:${DEFAULT_PORT}`;
+
+export interface ApiRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _skipRefresh?: boolean;
 }
 
-export const baseURL = resolveBaseUrl();
-
-export const client = axios.create({ baseURL });
-export const authClient = axios.create({ baseURL });
+export const client = axios.create({ baseURL, timeout: 10000 });
+export const authClient = axios.create({ baseURL, timeout: 10000 });
 
 export interface AuthHooks {
   getRefreshToken: () => string | null;
-  onTokensRefreshed: (tokens: AuthResponse) => void;
+  onTokensRefreshed: (tokens: AuthResponse) => Promise<void>;
   onSessionExpired: () => void;
 }
 
@@ -46,21 +41,21 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<{ message?: string }>) => {
-    const config = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-      _skipRefresh?: boolean;
-    };
+    const config = error.config as ApiRequestConfig;
 
     if (error.response?.status === 401 && config && !config._retry && !config._skipRefresh) {
+      const refreshToken = hooks?.getRefreshToken();
+      if (!refreshToken) {
+        return Promise.reject(error);
+      }
+
       config._retry = true;
 
       if (!refreshPromise) {
         refreshPromise = authClient
-          .post<AuthResponse>("/auth/refresh", {
-            refreshToken: hooks?.getRefreshToken(),
-          })
-          .then(({ data }) => {
-            hooks?.onTokensRefreshed(data);
+          .post<AuthResponse>("/auth/refresh", { refreshToken })
+          .then(async ({ data }) => {
+            await hooks?.onTokensRefreshed(data);
             return data.accessToken;
           })
           .catch((refreshError) => {
@@ -73,6 +68,7 @@ client.interceptors.response.use(
       }
 
       const token = await refreshPromise;
+      config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
       return client(config);
     }
@@ -86,6 +82,9 @@ export function getApiErrorMessage(error: unknown): string {
     const message = error.response?.data?.message;
     if (Array.isArray(message)) return message.join("\n");
     if (typeof message === "string") return message;
+    if (!error.response) {
+      return `Cannot reach the server at ${baseURL}. Check your connection and that the server is running.`;
+    }
     return error.message;
   }
   if (error instanceof Error) return error.message;
