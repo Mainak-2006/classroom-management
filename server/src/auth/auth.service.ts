@@ -65,8 +65,8 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const result =
       dto.role === 'student'
-        ? await this.studentService.create(dto.student)
-        : await this.teacherService.create(dto.teacher);
+        ? await this.studentService.create(dto.student!)
+        : await this.teacherService.create(dto.teacher!);
 
     const { id, email } = result.data;
 

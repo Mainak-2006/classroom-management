@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import type { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import {
   CreateStudentDto,
   Gender as StudentGender,
@@ -108,6 +109,21 @@ describe('AuthController', () => {
 
       expect(authService.logout).toHaveBeenCalledWith('rt', 'at');
       expect(result).toEqual({ message: 'Logout successful.' });
+    });
+  });
+
+  describe('me', () => {
+    it('should return the authenticated user', () => {
+      const user: AuthenticatedUser = {
+        id: '1',
+        email: 'a@b.com',
+        role: 'student',
+        jti: 'jti',
+      };
+
+      const result = controller.me(user);
+
+      expect(result).toEqual(user);
     });
   });
 });

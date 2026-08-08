@@ -13,10 +13,10 @@ export class RegisterDto {
   @ValidateIf((o) => (o as RegisterDto).role === 'student')
   @ValidateNested()
   @Type(() => CreateStudentDto)
-  student!: CreateStudentDto;
+  student?: CreateStudentDto;
 
   @ValidateIf((o) => (o as RegisterDto).role === 'teacher')
   @ValidateNested()
   @Type(() => CreateTeacherDto)
-  teacher!: CreateTeacherDto;
+  teacher?: CreateTeacherDto;
 }
