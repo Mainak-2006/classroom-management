@@ -13,15 +13,20 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @Controller('course')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post()
-  create(@Body() createCourseDto: CreateCourseDto) {
-    return this.courseService.create(createCourseDto);
+  create(
+    @Body() createCourseDto: CreateCourseDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.courseService.create(createCourseDto, user);
   }
 
   @Roles(Role.ADMIN)
@@ -35,53 +40,67 @@ export class CourseController {
     return this.courseService.findAll();
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {
-    return this.courseService.update(id, updateCourseDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateCourseDto: UpdateCourseDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.courseService.update(id, updateCourseDto, user);
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.courseService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.courseService.remove(id, user);
   }
 
   // Assign teacher to course
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post(':id/teacher/:teacherId')
   assignTeacherToCourse(
     @Param('id') courseId: string,
     @Param('teacherId') teacherId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.courseService.assignTeacherToCourse(courseId, teacherId);
+    return this.courseService.assignTeacherToCourse(courseId, teacherId, user);
   }
 
   // Remove teacher from course
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':id/teacher')
-  removeTeacherFromCourse(@Param('id') courseId: string) {
-    return this.courseService.removeTeacherFromCourse(courseId);
+  removeTeacherFromCourse(
+    @Param('id') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.courseService.removeTeacherFromCourse(courseId, user);
   }
 
   // Add student to course
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Post(':id/students/:studentId')
   addStudentToCourse(
     @Param('id') courseId: string,
     @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.courseService.addStudentToCourse(courseId, studentId);
+    return this.courseService.addStudentToCourse(courseId, studentId, user);
   }
 
   // Remove student from course
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':id/students/:studentId')
   removeStudentFromCourse(
     @Param('id') courseId: string,
     @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.courseService.removeStudentFromCourse(courseId, studentId);
+    return this.courseService.removeStudentFromCourse(
+      courseId,
+      studentId,
+      user,
+    );
   }
 
   // Get course students
@@ -106,6 +125,12 @@ export class CourseController {
   @Get('department/:department')
   findByDepartment(@Param('department') department: string) {
     return this.courseService.findByDepartment(department);
+  }
+
+  // Find courses taught by a teacher
+  @Get('teacher/:teacherId')
+  findByTeacher(@Param('teacherId') teacherId: string) {
+    return this.courseService.findByTeacher(teacherId);
   }
 
   // Get a single course by id (must be last to avoid shadowing other routes)

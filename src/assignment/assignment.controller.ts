@@ -14,6 +14,8 @@ import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { AssignmentStatus } from './entities/assignment.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @Controller('assignment')
 export class AssignmentController {
@@ -21,8 +23,11 @@ export class AssignmentController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post()
-  create(@Body() createAssignmentDto: CreateAssignmentDto) {
-    return this.assignmentService.create(createAssignmentDto);
+  create(
+    @Body() createAssignmentDto: CreateAssignmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assignmentService.create(createAssignmentDto, user);
   }
 
   @Get()
@@ -35,14 +40,15 @@ export class AssignmentController {
   update(
     @Param('id') id: string,
     @Body() updateAssignmentDto: UpdateAssignmentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignmentService.update(id, updateAssignmentDto);
+    return this.assignmentService.update(id, updateAssignmentDto, user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.assignmentService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.remove(id, user);
   }
 
   // Find assignments by course

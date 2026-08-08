@@ -1,11 +1,37 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- jest matchers return any */
 import { CourseService } from './course.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeacherService } from '../teacher/teacher.service';
 import { StudentService } from '../student/student.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+
+const adminRequester: AuthenticatedUser = {
+  id: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin',
+  jti: 'jti-admin',
+};
+
+const teacherRequester: AuthenticatedUser = {
+  id: 'teacher-1',
+  email: 'teacher@example.com',
+  role: 'teacher',
+  jti: 'jti-teacher',
+};
+
+const otherTeacherRequester: AuthenticatedUser = {
+  id: 'teacher-9',
+  email: 'teacher9@example.com',
+  role: 'teacher',
+  jti: 'jti-other',
+};
 
 const mockCourse = {
   id: 'course-1',
@@ -79,7 +105,9 @@ describe('CourseService', () => {
     it('should throw ConflictException when the course code already exists', async () => {
       prisma.course.findFirst.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+      await expect(service.create(dto, adminRequester)).rejects.toThrow(
+        ConflictException,
+      );
       expect(teacherService.findOne).not.toHaveBeenCalled();
     });
 
@@ -87,7 +115,9 @@ describe('CourseService', () => {
       prisma.course.findFirst.mockResolvedValue(null);
       teacherService.findOne.mockResolvedValue(null);
 
-      await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto, adminRequester)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should create the course and return an envelope', async () => {
@@ -95,7 +125,7 @@ describe('CourseService', () => {
       teacherService.findOne.mockResolvedValue({ id: 'teacher-1' });
       prisma.course.create.mockResolvedValue(mockCourse);
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, adminRequester);
 
       expect(prisma.course.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -109,6 +139,24 @@ describe('CourseService', () => {
       expect(result).toEqual({
         message: 'Course created successfully',
         data: mockCourse,
+      });
+    });
+
+    it('should auto-assign the creating teacher and ignore the body teacherId', async () => {
+      prisma.course.findFirst.mockResolvedValue(null);
+      prisma.course.create.mockResolvedValue(mockCourse);
+
+      await service.create(
+        { ...dto, teacherId: 'teacher-9' },
+        teacherRequester,
+      );
+
+      expect(teacherService.findOne).not.toHaveBeenCalled();
+      expect(prisma.course.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          teacherId: 'teacher-1',
+        }),
+        include: expect.anything(),
       });
     });
   });
@@ -147,29 +195,68 @@ describe('CourseService', () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.update('missing', { name: 'New name' }),
+        service.update('missing', { name: 'New name' }, adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('should throw ForbiddenException when a teacher updates a course they do not teach', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+
+      await expect(
+        service.update('c-1', { name: 'New name' }, otherTeacherRequester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('should throw ConflictException when the new code collides with another course', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       prisma.course.findFirst.mockResolvedValue({ id: 'c-2' });
 
-      await expect(service.update('c-1', { code: 'CS101' })).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.update('c-1', { code: 'CS101' }, adminRequester),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should update the course and return an envelope', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       prisma.course.findFirst.mockResolvedValue(null);
       prisma.course.update.mockResolvedValue(mockCourse);
 
-      const result = await service.update('c-1', { name: 'Updated title' });
+      const result = await service.update(
+        'c-1',
+        { name: 'Updated title' },
+        adminRequester,
+      );
 
       expect(result).toEqual({
         message: 'Course updated successfully',
         data: mockCourse,
+      });
+    });
+
+    it('should let a teacher update their own course and keep themselves as teacher', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+      prisma.course.findFirst.mockResolvedValue(null);
+      prisma.course.update.mockResolvedValue(mockCourse);
+
+      await service.update('c-1', { teacherId: 'teacher-9' }, teacherRequester);
+
+      expect(teacherService.findOne).not.toHaveBeenCalled();
+      expect(prisma.course.update).toHaveBeenCalledWith({
+        where: { id: 'c-1' },
+        data: expect.objectContaining({ teacherId: 'teacher-1' }),
+        include: expect.anything(),
       });
     });
   });
@@ -178,16 +265,30 @@ describe('CourseService', () => {
     it('should throw NotFoundException when the course does not exist', async () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove('missing')).rejects.toThrow(
+      await expect(service.remove('missing', adminRequester)).rejects.toThrow(
         NotFoundException,
       );
     });
 
+    it('should throw ForbiddenException when a teacher removes a course they do not teach', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+
+      await expect(
+        service.remove('c-1', otherTeacherRequester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('should delete the course and return an envelope', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       prisma.course.delete.mockResolvedValue(mockCourse);
 
-      const result = await service.remove('c-1');
+      const result = await service.remove('c-1', adminRequester);
 
       expect(prisma.course.delete).toHaveBeenCalledWith({
         where: { id: 'c-1' },
@@ -204,25 +305,50 @@ describe('CourseService', () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.assignTeacherToCourse('c-1', 'teacher-1'),
+        service.assignTeacherToCourse('c-1', 'teacher-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when the teacher does not exist', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       teacherService.findOne.mockResolvedValue(null);
 
       await expect(
-        service.assignTeacherToCourse('c-1', 'teacher-1'),
+        service.assignTeacherToCourse('c-1', 'teacher-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('should throw ForbiddenException when a teacher reassigns a course they do not teach', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+
+      await expect(
+        service.assignTeacherToCourse(
+          'c-1',
+          'teacher-2',
+          otherTeacherRequester,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('should connect the teacher to the course', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       teacherService.findOne.mockResolvedValue({ id: 'teacher-1' });
       prisma.course.update.mockResolvedValue(mockCourse);
 
-      const result = await service.assignTeacherToCourse('c-1', 'teacher-1');
+      const result = await service.assignTeacherToCourse(
+        'c-1',
+        'teacher-1',
+        adminRequester,
+      );
 
       expect(prisma.course.update).toHaveBeenCalledWith({
         where: { id: 'c-1' },
@@ -234,22 +360,43 @@ describe('CourseService', () => {
         data: mockCourse,
       });
     });
+
+    it('should force the requesting teacher to be the assigned teacher', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+      teacherService.findOne.mockResolvedValue({ id: 'teacher-1' });
+      prisma.course.update.mockResolvedValue(mockCourse);
+
+      await service.assignTeacherToCourse('c-1', 'teacher-9', teacherRequester);
+
+      expect(teacherService.findOne).toHaveBeenCalledWith('teacher-1');
+      expect(prisma.course.update).toHaveBeenCalledWith({
+        where: { id: 'c-1' },
+        data: { teacher: { connect: { id: 'teacher-1' } } },
+        include: expect.anything(),
+      });
+    });
   });
 
   describe('removeTeacherFromCourse', () => {
     it('should throw NotFoundException when the course does not exist', async () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
-      await expect(service.removeTeacherFromCourse('c-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.removeTeacherFromCourse('c-1', adminRequester),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should disconnect the teacher from the course', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       prisma.course.update.mockResolvedValue(mockCourse);
 
-      await service.removeTeacherFromCourse('c-1');
+      await service.removeTeacherFromCourse('c-1', adminRequester);
 
       expect(prisma.course.update).toHaveBeenCalledWith({
         where: { id: 'c-1' },
@@ -264,40 +411,58 @@ describe('CourseService', () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.addStudentToCourse('c-1', 'student-1'),
+        service.addStudentToCourse('c-1', 'student-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when the student does not exist', async () => {
-      prisma.course.findUnique.mockResolvedValue({ id: 'c-1' });
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
       studentService.findOne.mockResolvedValue(null);
 
       await expect(
-        service.addStudentToCourse('c-1', 'student-1'),
+        service.addStudentToCourse('c-1', 'student-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException when the student is already enrolled', async () => {
       prisma.course.findUnique
-        .mockResolvedValueOnce({ id: 'c-1' })
+        .mockResolvedValueOnce({ id: 'c-1', teacherId: 'teacher-1' })
         .mockResolvedValueOnce({
           students: [{ id: 'student-1' }],
         });
       studentService.findOne.mockResolvedValue({ id: 'student-1' });
 
       await expect(
-        service.addStudentToCourse('c-1', 'student-1'),
+        service.addStudentToCourse('c-1', 'student-1', adminRequester),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ForbiddenException when a teacher enrolls students in a course they do not teach', async () => {
+      prisma.course.findUnique.mockResolvedValue({
+        id: 'c-1',
+        teacherId: 'teacher-1',
+      });
+
+      await expect(
+        service.addStudentToCourse('c-1', 'student-1', otherTeacherRequester),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should connect a new student to the course', async () => {
       prisma.course.findUnique
-        .mockResolvedValueOnce({ id: 'c-1' })
+        .mockResolvedValueOnce({ id: 'c-1', teacherId: 'teacher-1' })
         .mockResolvedValueOnce({ students: [{ id: 'student-2' }] });
       studentService.findOne.mockResolvedValue({ id: 'student-1' });
       prisma.course.update.mockResolvedValue(mockCourse);
 
-      const result = await service.addStudentToCourse('c-1', 'student-1');
+      const result = await service.addStudentToCourse(
+        'c-1',
+        'student-1',
+        adminRequester,
+      );
 
       expect(prisma.course.update).toHaveBeenCalledWith({
         where: { id: 'c-1' },
@@ -313,27 +478,27 @@ describe('CourseService', () => {
       prisma.course.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.removeStudentFromCourse('c-1', 'student-1'),
+        service.removeStudentFromCourse('c-1', 'student-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when the student is not enrolled', async () => {
       prisma.course.findUnique
-        .mockResolvedValueOnce({ id: 'c-1' })
+        .mockResolvedValueOnce({ id: 'c-1', teacherId: 'teacher-1' })
         .mockResolvedValueOnce({ students: [] });
 
       await expect(
-        service.removeStudentFromCourse('c-1', 'student-1'),
+        service.removeStudentFromCourse('c-1', 'student-1', adminRequester),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should disconnect the enrolled student', async () => {
       prisma.course.findUnique
-        .mockResolvedValueOnce({ id: 'c-1' })
+        .mockResolvedValueOnce({ id: 'c-1', teacherId: 'teacher-1' })
         .mockResolvedValueOnce({ students: [{ id: 'student-1' }] });
       prisma.course.update.mockResolvedValue(mockCourse);
 
-      await service.removeStudentFromCourse('c-1', 'student-1');
+      await service.removeStudentFromCourse('c-1', 'student-1', adminRequester);
 
       expect(prisma.course.update).toHaveBeenCalledWith({
         where: { id: 'c-1' },
@@ -421,6 +586,30 @@ describe('CourseService', () => {
       const result = await service.findByStudent('student-1');
 
       expect(result).toEqual({ total: 0, data: [] });
+    });
+  });
+
+  describe('findByTeacher', () => {
+    it('should propagate NotFoundException when the teacher does not exist', async () => {
+      teacherService.findOne.mockRejectedValue(new NotFoundException());
+
+      await expect(service.findByTeacher('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.course.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should return the courses taught by the teacher', async () => {
+      teacherService.findOne.mockResolvedValue({ id: 'teacher-1' });
+      prisma.course.findMany.mockResolvedValue([mockCourse]);
+
+      const result = await service.findByTeacher('teacher-1');
+
+      expect(prisma.course.findMany).toHaveBeenCalledWith({
+        where: { teacherId: 'teacher-1' },
+        include: { students: true },
+      });
+      expect(result).toEqual({ total: 1, data: [mockCourse] });
     });
   });
 

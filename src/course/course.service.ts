@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,8 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { TeacherService } from '../teacher/teacher.service';
 import { StudentService } from '../student/student.service';
+import { Role } from '../auth/enums/role.enum';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 const courseInclude = {
   teacher: true,
@@ -24,7 +27,7 @@ export class CourseService {
     private readonly studentService: StudentService,
   ) {}
 
-  async create(createCourseDto: CreateCourseDto) {
+  async create(createCourseDto: CreateCourseDto, requester: AuthenticatedUser) {
     const existingCourse = await this.prisma.course.findFirst({
       where: {
         code: { equals: createCourseDto.code, mode: 'insensitive' },
@@ -38,7 +41,9 @@ export class CourseService {
 
     let teacherId: string | undefined;
 
-    if (createCourseDto.teacherId) {
+    if (requester.role === Role.TEACHER) {
+      teacherId = requester.id;
+    } else if (createCourseDto.teacherId) {
       const teacher = await this.teacherService.findOne(
         createCourseDto.teacherId,
       );
@@ -94,15 +99,21 @@ export class CourseService {
     return course;
   }
 
-  async update(id: string, updateCourseDto: UpdateCourseDto) {
+  async update(
+    id: string,
+    updateCourseDto: UpdateCourseDto,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.course.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
     }
+
+    this.assertTeacherOwnership(requester, existing);
 
     if (updateCourseDto.code) {
       const duplicate = await this.prisma.course.findFirst({
@@ -124,7 +135,9 @@ export class CourseService {
       ...rest,
     };
 
-    if (teacherId) {
+    if (requester.role === Role.TEACHER) {
+      data.teacherId = requester.id;
+    } else if (teacherId) {
       const teacher = await this.teacherService.findOne(teacherId);
 
       if (!teacher) {
@@ -146,15 +159,17 @@ export class CourseService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester: AuthenticatedUser) {
     const existing = await this.prisma.course.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
     }
+
+    this.assertTeacherOwnership(requester, existing);
 
     const deletedCourse = await this.prisma.course.delete({ where: { id } });
 
@@ -165,14 +180,24 @@ export class CourseService {
   }
 
   // Assign teacher to course
-  async assignTeacherToCourse(courseId: string, teacherId: string) {
+  async assignTeacherToCourse(
+    courseId: string,
+    teacherId: string,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
+    }
+
+    this.assertTeacherOwnership(requester, existing);
+
+    if (requester.role === Role.TEACHER) {
+      teacherId = requester.id;
     }
 
     const teacher = await this.teacherService.findOne(teacherId);
@@ -194,15 +219,20 @@ export class CourseService {
   }
 
   // Remove teacher from course
-  async removeTeacherFromCourse(courseId: string) {
+  async removeTeacherFromCourse(
+    courseId: string,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
     }
+
+    this.assertTeacherOwnership(requester, existing);
 
     const course = await this.prisma.course.update({
       where: { id: courseId },
@@ -217,15 +247,21 @@ export class CourseService {
   }
 
   // Add student to course
-  async addStudentToCourse(courseId: string, studentId: string) {
+  async addStudentToCourse(
+    courseId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
     }
+
+    this.assertTeacherOwnership(requester, existing);
 
     const student = await this.studentService.findOne(studentId);
 
@@ -259,15 +295,21 @@ export class CourseService {
   }
 
   // Remove student from course
-  async removeStudentFromCourse(courseId: string, studentId: string) {
+  async removeStudentFromCourse(
+    courseId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true },
+      select: { id: true, teacherId: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Course not found');
     }
+
+    this.assertTeacherOwnership(requester, existing);
 
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
@@ -342,6 +384,49 @@ export class CourseService {
       total: courses.length,
       data: courses,
     };
+  }
+
+  // Find courses taught by a teacher
+  async findByTeacher(teacherId: string) {
+    await this.teacherService.findOne(teacherId);
+
+    const courses = await this.prisma.course.findMany({
+      where: { teacherId },
+      include: { students: true },
+    });
+
+    return {
+      total: courses.length,
+      data: courses,
+    };
+  }
+
+  // Throws if the requester is a teacher who does not teach the course
+  async assertTeacherOwnsCourse(
+    requester: AuthenticatedUser,
+    courseId: string,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { teacherId: true },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    this.assertTeacherOwnership(requester, course);
+  }
+
+  private assertTeacherOwnership(
+    requester: AuthenticatedUser,
+    course: { teacherId: string | null },
+  ) {
+    if (requester.role === Role.TEACHER && course.teacherId !== requester.id) {
+      throw new ForbiddenException(
+        'You can only manage courses that you teach',
+      );
+    }
   }
 
   // Find courses by semester
