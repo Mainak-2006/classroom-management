@@ -72,8 +72,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         setItem(STORAGE_KEYS.user, JSON.stringify(user)),
       ]);
     } catch {
-      // In-memory state is authoritative; a storage write failure must not
-      // break the session.
+      return Promise.reject(new Error("Failed to store auth data"));
     }
   },
 
