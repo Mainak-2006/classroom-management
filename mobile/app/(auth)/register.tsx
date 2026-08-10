@@ -38,6 +38,9 @@ interface StudentForm {
   department: string;
   semester: string;
   section: string;
+  address: string;
+  guardianName: string;
+  guardianPhone: string;
 }
 
 interface TeacherForm {
@@ -75,6 +78,9 @@ export default function RegisterScreen() {
     department: "",
     semester: "",
     section: "",
+    address: "",
+    guardianName: "",
+    guardianPhone: "",
   });
   const [teacher, setTeacher] = useState<TeacherForm>({
     employeeId: "",
@@ -175,6 +181,9 @@ export default function RegisterScreen() {
               department: student.department.trim(),
               semester: Number(student.semester),
               section: student.section.trim() || undefined,
+              address: student.address.trim() || undefined,
+              guardianName: student.guardianName.trim() || undefined,
+              guardianPhone: student.guardianPhone.trim() || undefined,
               password: personal.password,
               confirmPassword: personal.confirmPassword,
             }
@@ -430,6 +439,32 @@ export default function RegisterScreen() {
                 onChangeText={(section) => setStudentField("section", section)}
                 placeholder="A"
                 autoCapitalize="characters"
+                editable={!loading}
+              />
+              <FormInput
+                label="Address (optional)"
+                value={student.address}
+                onChangeText={(address) => setStudentField("address", address)}
+                placeholder="123 Main Street, City"
+                autoCapitalize="words"
+                editable={!loading}
+              />
+              <FormInput
+                label="Guardian name (optional)"
+                value={student.guardianName}
+                onChangeText={(guardianName) => setStudentField("guardianName", guardianName)}
+                placeholder="Jane Doe"
+                autoCapitalize="words"
+                editable={!loading}
+              />
+              <FormInput
+                label="Guardian phone (optional)"
+                value={student.guardianPhone}
+                onChangeText={(guardianPhone) =>
+                  setStudentField("guardianPhone", guardianPhone)
+                }
+                placeholder="+1 555 987 6543"
+                keyboardType="phone-pad"
                 editable={!loading}
               />
             </View>

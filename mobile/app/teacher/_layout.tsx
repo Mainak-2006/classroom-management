@@ -1,45 +1,50 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 
-import { colors } from "../../constants/theme";
+import { homeForRole, tabScreenOptions } from "../../lib/navigation";
+import { UserRole } from "../../lib/types";
 import { useAuthStore } from "../../stores/authStore";
 
-export default function TabsLayout() {
+export default function TeacherTabsLayout() {
   const status = useAuthStore((state) => state.status);
+  const role = useAuthStore((state) => state.user?.role);
 
   if (status !== "authenticated") {
     return <Redirect href="/(auth)/login" />;
   }
 
+  if (role !== UserRole.TEACHER) {
+    return <Redirect href={homeForRole(role)} />;
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-      }}
-    >
+    <Tabs screenOptions={tabScreenOptions()}>
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          title: "Dashboard",
+          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="courses"
         options={{
-          title: "Courses",
+          title: "My Courses",
           tabBarIcon: ({ color, size }) => <Ionicons name="book" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="students"
+        options={{
+          title: "Students",
+          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="assignments"
         options={{
           title: "Assignments",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
