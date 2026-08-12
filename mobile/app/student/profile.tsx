@@ -35,7 +35,7 @@ export default function ProfileScreen() {
           <Text className="mt-1 text-sm capitalize text-slate-500">{user?.role}</Text>
         </View>
 
-        <View className="mt-auto pb-4">
+        <View className="mt-auto mb-28">
           <Button title="Log Out" onPress={handleLogout} loading={loading} variant="secondary" />
         </View>
       </View>

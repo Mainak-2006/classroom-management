@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 
-import { homeForRole, tabScreenOptions } from "../../lib/navigation";
+import AdvancedTabs from "../../components/AdvancedTabs";
+import { homeForRole } from "../../lib/navigation";
 import { UserRole } from "../../lib/types";
 import { useAuthStore } from "../../stores/authStore";
 
@@ -18,7 +19,7 @@ export default function AdminTabsLayout() {
   }
 
   return (
-    <Tabs screenOptions={tabScreenOptions()}>
+    <AdvancedTabs>
       <Tabs.Screen
         name="index"
         options={{
@@ -54,6 +55,6 @@ export default function AdminTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
         }}
       />
-    </Tabs>
+    </AdvancedTabs>
   );
 }
