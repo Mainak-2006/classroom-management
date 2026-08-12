@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
 import Button from "../../components/Button";
 import Screen from "../../components/Screen";
@@ -24,7 +24,7 @@ export default function TeacherProfileScreen() {
 
   return (
     <Screen>
-      <View className="flex-1 pt-4">
+      <ScrollView className="flex-1 pt-4">
         <Text className="text-2xl font-bold text-slate-900">Profile</Text>
 
         <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
@@ -35,10 +35,10 @@ export default function TeacherProfileScreen() {
           <Text className="mt-1 text-sm capitalize text-slate-500">{user?.role}</Text>
         </View>
 
-        <View className="mt-auto pb-4">
+        <View className="mt-auto mb-28">
           <Button title="Log Out" onPress={handleLogout} loading={loading} variant="secondary" />
         </View>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
