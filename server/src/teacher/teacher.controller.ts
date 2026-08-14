@@ -40,7 +40,7 @@ export class TeacherController {
 
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
-    return user;
+    return this.teacherService.findOne(user.id);
   }
 
   // Get own courses
