@@ -57,6 +57,8 @@ export interface Course extends Timestamps {
   credits: number;
   isActive: boolean;
   teacherId?: string | null;
+  teacher?: Teacher | null;
+  students?: Student[];
 }
 
 export interface Attendance extends Timestamps {

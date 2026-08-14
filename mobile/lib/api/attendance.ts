@@ -27,14 +27,22 @@ export const attendanceService = {
     client.delete<MessageResponse<Attendance>>(`/attendance/${id}`).then((res) => res.data),
 
   byCourse: (courseId: string) =>
-    client.get<Attendance[]>(`/attendance/course/${courseId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>(`/attendance/course/${courseId}`)
+      .then((res) => res.data.data),
 
   byStudent: (studentId: string) =>
-    client.get<Attendance[]>(`/attendance/student/${studentId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>(`/attendance/student/${studentId}`)
+      .then((res) => res.data.data),
 
   byDate: (date: string) =>
-    client.get<Attendance[]>(`/attendance/date/${date}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>(`/attendance/date/${date}`)
+      .then((res) => res.data.data),
 
   byCourseAndDate: (courseId: string, date: string) =>
-    client.get<Attendance[]>(`/attendance/course/${courseId}/date/${date}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>(`/attendance/course/${courseId}/date/${date}`)
+      .then((res) => res.data.data),
 };

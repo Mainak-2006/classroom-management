@@ -21,13 +21,15 @@ export const teacherService = {
     client.get<Teacher>("/teacher/profile").then((res) => res.data),
 
   getCourses: () =>
-    client.get<Course[]>("/teacher/courses").then((res) => res.data),
+    client.get<PaginatedResponse<Course>>("/teacher/courses").then((res) => res.data.data),
 
   markAttendance: (data: CreateAttendanceDto) =>
     client.post<MessageResponse<Attendance>>("/teacher/attendance", data).then((res) => res.data),
 
   getCourseAttendance: (courseId: string) =>
-    client.get<Attendance[]>(`/teacher/attendance/course/${courseId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>(`/teacher/attendance/course/${courseId}`)
+      .then((res) => res.data.data),
 
   list: () =>
     client.get<PaginatedResponse<Teacher>>("/teacher").then((res) => res.data),

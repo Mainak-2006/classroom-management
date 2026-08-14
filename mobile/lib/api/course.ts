@@ -49,17 +49,25 @@ export const courseService = {
       .then((res) => res.data),
 
   getStudents: (courseId: string) =>
-    client.get<Student[]>(`/course/${courseId}/students`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Student>>(`/course/${courseId}/students`)
+      .then((res) => res.data.data),
 
   getTeacher: (courseId: string) =>
     client.get<Teacher>(`/course/${courseId}/teacher`).then((res) => res.data),
 
   bySemester: (semester: number) =>
-    client.get<Course[]>(`/course/semester/${semester}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Course>>(`/course/semester/${semester}`)
+      .then((res) => res.data.data),
 
   byDepartment: (department: string) =>
-    client.get<Course[]>(`/course/department/${department}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Course>>(`/course/department/${department}`)
+      .then((res) => res.data.data),
 
   byTeacher: (teacherId: string) =>
-    client.get<Course[]>(`/course/teacher/${teacherId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Course>>(`/course/teacher/${teacherId}`)
+      .then((res) => res.data.data),
 };

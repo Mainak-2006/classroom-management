@@ -5,6 +5,7 @@ import Avatar from "../../components/Avatar";
 import Button from "../../components/Button";
 import FormInput from "../../components/FormInput";
 import GenderPicker from "../../components/GenderPicker";
+import ProfileEditSheet from "../../components/ProfileEditSheet";
 import ProfileRow from "../../components/ProfileRow";
 import ProfileSection from "../../components/ProfileSection";
 import Screen from "../../components/Screen";
@@ -81,7 +82,7 @@ export default function StudentProfileScreen() {
       lastName: profile.lastName,
       email: profile.email,
       phone: profile.phone,
-      dateOfBirth: profile.dateOfBirth,
+      dateOfBirth: profile.dateOfBirth.slice(0, 10),
       gender: profile.gender,
       address: profile.address ?? "",
       semester: String(profile.semester),
@@ -94,6 +95,7 @@ export default function StudentProfileScreen() {
   };
 
   const cancelEditing = () => {
+    if (saving) return;
     setForm(null);
     setFormError(null);
     setEditing(false);
@@ -175,6 +177,7 @@ export default function StudentProfileScreen() {
       <ScrollView
         className="flex-1 pt-4"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        showsVerticalScrollIndicator={false}
       >
         <Text className="text-2xl font-bold text-slate-900">Profile</Text>
 
@@ -190,7 +193,62 @@ export default function StudentProfileScreen() {
             </View>
           </View>
         ) : profile ? (
-          editing && form ? (
+          <View>
+            <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
+              <Avatar name={fullName} />
+              <Text className="mt-3 text-lg font-semibold text-slate-900">{fullName}</Text>
+              <View className="mt-1 flex-row items-center gap-2">
+                <Text className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">
+                  STUDENT
+                </Text>
+                <Text className="text-sm capitalize text-slate-500">
+                  Semester {profile.semester} · {profile.department}
+                </Text>
+              </View>
+            </View>
+
+            <ProfileSection title="Personal">
+              <ProfileRow label="Email" value={profile.email} />
+              <ProfileRow label="Phone" value={profile.phone} />
+              <ProfileRow label="Date of birth" value={profile.dateOfBirth.slice(0, 10)} />
+              <ProfileRow
+                label="Gender"
+                value={profile.gender.charAt(0) + profile.gender.slice(1).toLowerCase()}
+              />
+              <ProfileRow label="Address" value={profile.address} />
+            </ProfileSection>
+
+            <ProfileSection title="Academic">
+              <ProfileRow label="Roll number" value={profile.rollNumber} />
+              <ProfileRow label="Registration number" value={profile.registrationNumber} />
+              <ProfileRow label="Department" value={profile.department} />
+              <ProfileRow label="Semester" value={profile.semester} />
+              <ProfileRow label="Section" value={profile.section} />
+            </ProfileSection>
+
+            <ProfileSection title="Guardian">
+              <ProfileRow label="Name" value={profile.guardianName} />
+              <ProfileRow label="Phone" value={profile.guardianPhone} />
+            </ProfileSection>
+
+            <View className="mt-6">
+              <Button title="Edit Profile" onPress={startEditing} />
+            </View>
+            <View className="mt-3 mb-28">
+              <Button
+                title="Log Out"
+                onPress={handleLogout}
+                loading={loggingOut}
+                variant="secondary"
+              />
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {profile ? (
+        <ProfileEditSheet visible={editing} onClose={cancelEditing}>
+          {form ? (
             <View>
               <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
                 <Avatar name={fullName} />
@@ -317,60 +375,9 @@ export default function StudentProfileScreen() {
                 </View>
               </View>
             </View>
-          ) : (
-            <View>
-              <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
-                <Avatar name={fullName} />
-                <Text className="mt-3 text-lg font-semibold text-slate-900">{fullName}</Text>
-                <View className="mt-1 flex-row items-center gap-2">
-                  <Text className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">
-                    STUDENT
-                  </Text>
-                  <Text className="text-sm capitalize text-slate-500">
-                    Semester {profile.semester} · {profile.department}
-                  </Text>
-                </View>
-              </View>
-
-              <ProfileSection title="Personal">
-                <ProfileRow label="Email" value={profile.email} />
-                <ProfileRow label="Phone" value={profile.phone} />
-                <ProfileRow label="Date of birth" value={profile.dateOfBirth} />
-                <ProfileRow
-                  label="Gender"
-                  value={profile.gender.charAt(0) + profile.gender.slice(1).toLowerCase()}
-                />
-                <ProfileRow label="Address" value={profile.address} />
-              </ProfileSection>
-
-              <ProfileSection title="Academic">
-                <ProfileRow label="Roll number" value={profile.rollNumber} />
-                <ProfileRow label="Registration number" value={profile.registrationNumber} />
-                <ProfileRow label="Department" value={profile.department} />
-                <ProfileRow label="Semester" value={profile.semester} />
-                <ProfileRow label="Section" value={profile.section} />
-              </ProfileSection>
-
-              <ProfileSection title="Guardian">
-                <ProfileRow label="Name" value={profile.guardianName} />
-                <ProfileRow label="Phone" value={profile.guardianPhone} />
-              </ProfileSection>
-
-              <View className="mt-6">
-                <Button title="Edit Profile" onPress={startEditing} />
-              </View>
-              <View className="mt-3 mb-28">
-                <Button
-                  title="Log Out"
-                  onPress={handleLogout}
-                  loading={loggingOut}
-                  variant="secondary"
-                />
-              </View>
-            </View>
-          )
-        ) : null}
-      </ScrollView>
+          ) : null}
+        </ProfileEditSheet>
+      ) : null}
     </Screen>
   );
 }

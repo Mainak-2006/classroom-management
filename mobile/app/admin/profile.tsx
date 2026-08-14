@@ -5,6 +5,7 @@ import Avatar from "../../components/Avatar";
 import Button from "../../components/Button";
 import FormInput from "../../components/FormInput";
 import GenderPicker from "../../components/GenderPicker";
+import ProfileEditSheet from "../../components/ProfileEditSheet";
 import ProfileRow from "../../components/ProfileRow";
 import ProfileSection from "../../components/ProfileSection";
 import Screen from "../../components/Screen";
@@ -77,7 +78,7 @@ export default function AdminProfileScreen() {
       lastName: profile.lastName,
       email: profile.email,
       phone: profile.phone,
-      dateOfBirth: profile.dateOfBirth,
+      dateOfBirth: profile.dateOfBirth.slice(0, 10),
       gender: profile.gender,
       department: profile.department,
     });
@@ -86,6 +87,7 @@ export default function AdminProfileScreen() {
   };
 
   const cancelEditing = () => {
+    if (saving) return;
     setForm(null);
     setFormError(null);
     setEditing(false);
@@ -159,8 +161,9 @@ export default function AdminProfileScreen() {
   return (
     <Screen>
       <ScrollView
-        className="flex-1 pt-4"
+        className="flex-1 pt-4 px-4 py-36"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        showsVerticalScrollIndicator={false}
       >
         <Text className="text-2xl font-bold text-slate-900">Profile</Text>
 
@@ -176,7 +179,51 @@ export default function AdminProfileScreen() {
             </View>
           </View>
         ) : profile ? (
-          editing && form ? (
+          <View>
+            <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
+              <Avatar name={fullName} />
+              <Text className="mt-3 text-lg font-semibold text-slate-900">{fullName}</Text>
+              <View className="mt-1 flex-row items-center gap-2">
+                <Text className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">
+                  {profile.role.replace("_", " ")}
+                </Text>
+                <Text className="text-sm capitalize text-slate-500">{profile.department}</Text>
+              </View>
+            </View>
+
+            <ProfileSection title="Personal">
+              <ProfileRow label="Email" value={profile.email} />
+              <ProfileRow label="Phone" value={profile.phone} />
+              <ProfileRow label="Date of birth" value={profile.dateOfBirth.slice(0, 10)} />
+              <ProfileRow
+                label="Gender"
+                value={profile.gender.charAt(0) + profile.gender.slice(1).toLowerCase()}
+              />
+            </ProfileSection>
+
+            <ProfileSection title="Role">
+              <ProfileRow label="Admin role" value={profile.role.replace("_", " ")} />
+              <ProfileRow label="Department" value={profile.department} />
+            </ProfileSection>
+
+            <View className="mt-6">
+              <Button title="Edit Profile" onPress={startEditing} />
+            </View>
+            <View className="mt-3 mb-28">
+              <Button
+                title="Log Out"
+                onPress={handleLogout}
+                loading={loggingOut}
+                variant="secondary"
+              />
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {profile ? (
+        <ProfileEditSheet visible={editing} onClose={cancelEditing}>
+          {form ? (
             <View>
               <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
                 <Avatar name={fullName} />
@@ -267,49 +314,9 @@ export default function AdminProfileScreen() {
                 </View>
               </View>
             </View>
-          ) : (
-            <View>
-              <View className="mt-6 items-center rounded-xl border border-slate-200 bg-white p-6">
-                <Avatar name={fullName} />
-                <Text className="mt-3 text-lg font-semibold text-slate-900">{fullName}</Text>
-                <View className="mt-1 flex-row items-center gap-2">
-                  <Text className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">
-                    {profile.role.replace("_", " ")}
-                  </Text>
-                  <Text className="text-sm capitalize text-slate-500">{profile.department}</Text>
-                </View>
-              </View>
-
-              <ProfileSection title="Personal">
-                <ProfileRow label="Email" value={profile.email} />
-                <ProfileRow label="Phone" value={profile.phone} />
-                <ProfileRow label="Date of birth" value={profile.dateOfBirth} />
-                <ProfileRow
-                  label="Gender"
-                  value={profile.gender.charAt(0) + profile.gender.slice(1).toLowerCase()}
-                />
-              </ProfileSection>
-
-              <ProfileSection title="Role">
-                <ProfileRow label="Admin role" value={profile.role.replace("_", " ")} />
-                <ProfileRow label="Department" value={profile.department} />
-              </ProfileSection>
-
-              <View className="mt-6">
-                <Button title="Edit Profile" onPress={startEditing} />
-              </View>
-              <View className="mt-3 mb-28">
-                <Button
-                  title="Log Out"
-                  onPress={handleLogout}
-                  loading={loggingOut}
-                  variant="secondary"
-                />
-              </View>
-            </View>
-          )
-        ) : null}
-      </ScrollView>
+          ) : null}
+        </ProfileEditSheet>
+      ) : null}
     </Screen>
   );
 }
