@@ -18,7 +18,7 @@ export const teacherService = {
     client.post<MessageResponse<Teacher[]>>("/teacher/bulk", data).then((res) => res.data),
 
   getProfile: () =>
-    client.get<{ id: string; email: string; role: string; jti: string }>("/teacher/profile").then((res) => res.data),
+    client.get<Teacher>("/teacher/profile").then((res) => res.data),
 
   getCourses: () =>
     client.get<Course[]>("/teacher/courses").then((res) => res.data),
