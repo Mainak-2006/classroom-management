@@ -35,6 +35,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
 
+      - name: Apply test migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+        run: npx prisma migrate deploy
+
       - name: Deploy (main -> production)
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
@@ -43,6 +48,18 @@ jobs:
             --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
             --branch main \
             --app server \
+            --prod \
+            --yes \
+            --json
+
+      - name: Deploy (main -> server-test)
+        env:
+          PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
+        run: |
+          npx --yes @prisma/cli@latest app deploy \
+            --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
+            --branch main \
+            --app server-test \
             --prod \
             --yes \
             --json
