@@ -15,7 +15,7 @@ export const adminService = {
     client.post<MessageResponse<Admin[]>>("/admin/bulk", data).then((res) => res.data),
 
   getProfile: () =>
-    client.get<{ id: string; email: string; role: string; jti: string }>("/admin/profile").then((res) => res.data),
+    client.get<Admin>("/admin/profile").then((res) => res.data),
 
   list: () =>
     client.get<PaginatedResponse<Admin>>("/admin").then((res) => res.data),
