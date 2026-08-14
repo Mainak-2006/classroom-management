@@ -21,3 +21,4 @@ export default function AdvancedTabs({ children }: PropsWithChildren) {
     </Tabs>
   );
 }
+

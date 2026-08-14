@@ -21,10 +21,12 @@ export const studentService = {
     client.get<Student>("/student/profile").then((res) => res.data),
 
   getAttendance: () =>
-    client.get<Attendance[]>("/student/attendance").then((res) => res.data),
+    client
+      .get<PaginatedResponse<Attendance>>("/student/attendance")
+      .then((res) => res.data.data),
 
   getCourses: () =>
-    client.get<Course[]>("/student/courses").then((res) => res.data),
+    client.get<PaginatedResponse<Course>>("/student/courses").then((res) => res.data.data),
 
   getExams: () =>
     client.get<ExamSubmission[]>("/student/exams").then((res) => res.data),
