@@ -33,7 +33,7 @@ export class AdminController {
 
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
-    return user;
+    return this.adminService.findOne(user.id);
   }
 
   @Roles(Role.ADMIN)
