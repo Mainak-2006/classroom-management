@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -9,6 +8,7 @@ import {
   View,
 } from "react-native";
 
+import Avatar from "../../components/Avatar";
 import Button from "../../components/Button";
 import Screen from "../../components/Screen";
 import { colors } from "../../constants/theme";
@@ -17,6 +17,8 @@ import { getApiErrorMessage } from "../../lib/api/client";
 import { teacherService } from "../../lib/api/teacher";
 import type { Attendance, Course, CreateAttendanceDto, Student } from "../../lib/types";
 import { AttendanceStatus } from "../../lib/types";
+
+const TODAY = new Date().toISOString().slice(0, 10);
 
 const STATUS_OPTIONS: { status: AttendanceStatus; label: string; selectedColor: string }[] = [
   { status: AttendanceStatus.PRESENT, label: "Present", selectedColor: "#10B981" },
@@ -40,23 +42,27 @@ const MONTHS = [
   "Dec",
 ];
 
-function toISODate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shiftDate(iso: string, days: number): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatLongDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return `${MONTHS[month - 1]} ${day}, ${year}`;
+function formatToday(): string {
+  const now = new Date();
+  const day = now.getDate();
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+        ? "nd"
+        : day % 10 === 3 && day !== 13
+          ? "rd"
+          : "th";
+  const weekday = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ][now.getDay()];
+  return `${weekday}, ${MONTHS[now.getMonth()]} ${day}${suffix}, ${now.getFullYear()}`;
 }
 
 export default function TeacherAttendanceScreen() {
@@ -64,7 +70,6 @@ export default function TeacherAttendanceScreen() {
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const [date, setDate] = useState(() => toISODate(new Date()));
 
   const [records, setRecords] = useState<Attendance[]>([]);
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
@@ -107,7 +112,7 @@ export default function TeacherAttendanceScreen() {
     if (!selectedCourseId) return;
 
     try {
-      const existing = await attendanceService.byCourseAndDate(selectedCourseId, date);
+      const existing = await attendanceService.byCourseAndDate(selectedCourseId, TODAY);
       const course = courses.find((c) => c.id === selectedCourseId);
       const roster = course?.students ?? [];
 
@@ -127,7 +132,7 @@ export default function TeacherAttendanceScreen() {
     } finally {
       setRosterLoading(false);
     }
-  }, [selectedCourseId, date, courses]);
+  }, [selectedCourseId, courses]);
 
   useEffect(() => {
     const run = async () => {
@@ -158,16 +163,6 @@ export default function TeacherAttendanceScreen() {
     setFeedback(null);
   };
 
-  const shiftDateBy = (days: number) => {
-    setRosterLoading(true);
-    setDate((previous) => shiftDate(previous, days));
-  };
-
-  const goToToday = () => {
-    setRosterLoading(true);
-    setDate(toISODate(new Date()));
-  };
-
   const summary = useMemo(() => {
     let present = 0;
     let absent = 0;
@@ -192,7 +187,7 @@ export default function TeacherAttendanceScreen() {
     for (const [studentId, status] of Object.entries(statuses)) {
       const existing = existingByStudent.get(studentId);
       if (!existing) {
-        toCreate.push({ studentId, courseId: selectedCourseId, date, status });
+        toCreate.push({ studentId, courseId: selectedCourseId, date: TODAY, status });
       } else if (existing.status !== status) {
         toUpdate.push({ id: existing.id, status });
       }
@@ -229,6 +224,9 @@ export default function TeacherAttendanceScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text className="text-2xl font-bold text-slate-900">Attendance</Text>
+        <Text className="mt-1 text-sm text-slate-500">
+          Mark today&apos;s attendance · {formatToday()}
+        </Text>
 
         {coursesLoading ? (
           <View className="mt-20 items-center">
@@ -280,31 +278,6 @@ export default function TeacherAttendanceScreen() {
               </View>
             </ScrollView>
 
-            <View className="mt-6 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-2 py-2">
-              <Pressable
-                onPress={() => shiftDateBy(-1)}
-                hitSlop={8}
-                className="rounded-lg p-2"
-              >
-                <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
-              </Pressable>
-              <View className="items-center">
-                <Text className="text-sm font-semibold text-slate-900">
-                  {formatLongDate(date)}
-                </Text>
-                <Pressable onPress={goToToday} hitSlop={8}>
-                  <Text className="text-xs font-medium text-sky-600">Today</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                onPress={() => shiftDateBy(1)}
-                hitSlop={8}
-                className="rounded-lg p-2"
-              >
-                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-              </Pressable>
-            </View>
-
             {rosterLoading ? (
               <View className="mt-16 items-center">
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -348,8 +321,8 @@ export default function TeacherAttendanceScreen() {
                 <Text className="mt-6 mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Students ({students.length})
                 </Text>
-                <View className="rounded-xl border border-slate-200 bg-white px-4 py-1">
-                  {students.map((student: Student, index) => {
+                <View className="gap-3">
+                  {students.map((student: Student) => {
                     const current = statuses[student.id] ?? AttendanceStatus.PRESENT;
                     const fullName = [student.firstName, student.middleName, student.lastName]
                       .filter(Boolean)
@@ -358,26 +331,25 @@ export default function TeacherAttendanceScreen() {
                     return (
                       <View
                         key={student.id}
-                        className={
-                          index === students.length - 1
-                            ? "py-3"
-                            : "border-b border-slate-100 py-3"
-                        }
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-3"
                       >
-                        <View className="flex-row items-center justify-between">
-                          <Text className="flex-1 text-sm font-medium text-slate-900">
-                            {fullName}
-                          </Text>
-                          <Text className="text-xs text-slate-400">{student.rollNumber}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <Avatar name={fullName} size={40} />
+                          <View className="flex-1">
+                            <Text className="text-sm font-semibold text-slate-900">
+                              {fullName}
+                            </Text>
+                            <Text className="text-xs text-slate-400">{student.rollNumber}</Text>
+                          </View>
                         </View>
-                        <View className="mt-2 flex-row gap-2">
+                        <View className="mt-3 flex-row gap-2">
                           {STATUS_OPTIONS.map((option) => {
                             const active = current === option.status;
                             return (
                               <Pressable
                                 key={option.status}
                                 onPress={() => setStatus(student.id, option.status)}
-                                className="flex-1 items-center rounded-lg py-1.5"
+                                className="flex-1 items-center rounded-lg py-2"
                                 style={{
                                   backgroundColor: active
                                     ? option.selectedColor

@@ -224,7 +224,7 @@ export default function AdminCoursesScreen() {
               </View>
             </View>
 
-            <View className="mt-6 gap-3">
+            <View className="mt-6 gap-3 pb-28">
               {sorted.map((course) => (
                 <CourseCard
                   key={course.id}
