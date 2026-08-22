@@ -28,19 +28,31 @@ export const examService = {
     client.delete<MessageResponse<Exam>>(`/exam/${id}`).then((res) => res.data),
 
   byCourse: (courseId: string) =>
-    client.get<Exam[]>(`/exam/course/${courseId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Exam> | Exam[]>(`/exam/course/${courseId}`)
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 
   byStatus: (status: ExamStatus) =>
-    client.get<Exam[]>(`/exam/status/${status}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Exam> | Exam[]>(`/exam/status/${status}`)
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 
   submissionsByStudent: (studentId: string) =>
-    client.get<ExamSubmission[]>(`/exam/submissions/student/${studentId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<ExamSubmission> | ExamSubmission[]>(
+        `/exam/submissions/student/${studentId}`,
+      )
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 
   submit: (examId: string, data: CreateExamSubmissionDto) =>
-    client.post<MessageResponse<ExamSubmission>>(`/exam/${examId}/submit`, data).then((res) => res.data),
+    client
+      .post<MessageResponse<ExamSubmission>>(`/exam/${examId}/submit`, data)
+      .then((res) => res.data),
 
   getSubmissions: (examId: string) =>
-    client.get<ExamSubmission[]>(`/exam/${examId}/submissions`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<ExamSubmission> | ExamSubmission[]>(`/exam/${examId}/submissions`)
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 
   updateSubmission: (submissionId: string, data: UpdateExamSubmissionDto) =>
     client
