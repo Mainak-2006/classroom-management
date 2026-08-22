@@ -25,8 +25,12 @@ export const assignmentService = {
     client.delete<MessageResponse<Assignment>>(`/assignment/${id}`).then((res) => res.data),
 
   byCourse: (courseId: string) =>
-    client.get<Assignment[]>(`/assignment/course/${courseId}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Assignment> | Assignment[]>(`/assignment/course/${courseId}`)
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 
   byStatus: (status: AssignmentStatus) =>
-    client.get<Assignment[]>(`/assignment/status/${status}`).then((res) => res.data),
+    client
+      .get<PaginatedResponse<Assignment> | Assignment[]>(`/assignment/status/${status}`)
+      .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
 };
