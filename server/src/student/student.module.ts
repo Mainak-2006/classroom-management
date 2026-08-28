@@ -4,12 +4,14 @@ import { StudentController } from './student.controller';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { CourseModule } from '../course/course.module';
 import { ExamModule } from '../exam/exam.module';
+import { AssignmentModule } from '../assignment/assignment.module';
 
 @Module({
   imports: [
     forwardRef(() => AttendanceModule),
     forwardRef(() => CourseModule),
     forwardRef(() => ExamModule),
+    forwardRef(() => AssignmentModule),
   ],
   controllers: [StudentController],
   providers: [StudentService],
