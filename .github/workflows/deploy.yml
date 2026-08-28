@@ -44,7 +44,7 @@ jobs:
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
         run: |
-          npx --yes @prisma/cli@latest app deploy \
+          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
             --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
             --branch main \
             --app server \
@@ -56,7 +56,7 @@ jobs:
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
         run: |
-          npx --yes @prisma/cli@latest app deploy \
+          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
             --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
             --branch main \
             --app server-test \
