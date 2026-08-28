@@ -13,6 +13,7 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CourseService } from '../course/course.service';
 import { ExamService } from '../exam/exam.service';
+import { AssignmentService } from '../assignment/assignment.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
@@ -25,6 +26,7 @@ export class StudentController {
     private readonly attendanceService: AttendanceService,
     private readonly courseService: CourseService,
     private readonly examService: ExamService,
+    private readonly assignmentService: AssignmentService,
   ) {}
 
   @Roles(Role.ADMIN, Role.STUDENT)
@@ -64,6 +66,13 @@ export class StudentController {
   @Get('exams')
   myExams(@CurrentUser() user: AuthenticatedUser) {
     return this.examService.findByStudent(user.id);
+  }
+
+  // Get own assignments
+  @Roles(Role.STUDENT)
+  @Get('assignments')
+  myAssignments(@CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findByStudent(user.id);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)

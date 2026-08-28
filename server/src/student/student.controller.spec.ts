@@ -4,6 +4,7 @@ import { StudentService } from './student.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CourseService } from '../course/course.service';
 import { ExamService } from '../exam/exam.service';
+import { AssignmentService } from '../assignment/assignment.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 describe('StudentController', () => {
@@ -12,6 +13,7 @@ describe('StudentController', () => {
   let attendanceService: { findByStudent: jest.Mock };
   let courseService: { findByStudent: jest.Mock };
   let examService: { findByStudent: jest.Mock };
+  let assignmentService: { findByStudent: jest.Mock };
 
   const currentUser: AuthenticatedUser = {
     id: 'student-1',
@@ -25,6 +27,7 @@ describe('StudentController', () => {
     attendanceService = { findByStudent: jest.fn() };
     courseService = { findByStudent: jest.fn() };
     examService = { findByStudent: jest.fn() };
+    assignmentService = { findByStudent: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StudentController],
@@ -33,6 +36,7 @@ describe('StudentController', () => {
         { provide: AttendanceService, useValue: attendanceService },
         { provide: CourseService, useValue: courseService },
         { provide: ExamService, useValue: examService },
+        { provide: AssignmentService, useValue: assignmentService },
       ],
     }).compile();
 
@@ -85,6 +89,16 @@ describe('StudentController', () => {
       await controller.myExams(currentUser);
 
       expect(examService.findByStudent).toHaveBeenCalledWith('student-1');
+    });
+  });
+
+  describe('myAssignments', () => {
+    it('should delegate to the assignment service for the current user', async () => {
+      assignmentService.findByStudent.mockResolvedValue({ data: [] });
+
+      await controller.myAssignments(currentUser);
+
+      expect(assignmentService.findByStudent).toHaveBeenCalledWith('student-1');
     });
   });
 });

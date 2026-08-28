@@ -158,4 +158,40 @@ export class AssignmentService {
       data: assignments,
     };
   }
+
+  // Find assignments for a student (enrolled courses)
+  async findByStudent(studentId: string) {
+    // Get student's enrolled course IDs
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { courses: { select: { id: true } } },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    const courseIds = student.courses.map((c) => c.id);
+
+    if (courseIds.length === 0) {
+      return { total: 0, data: [] };
+    }
+
+    const assignments = await this.prisma.assignment.findMany({
+      where: {
+        courseId: { in: courseIds },
+      },
+      include: {
+        course: {
+          select: { id: true, name: true, code: true },
+        },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    return {
+      total: assignments.length,
+      data: assignments,
+    };
+  }
 }
