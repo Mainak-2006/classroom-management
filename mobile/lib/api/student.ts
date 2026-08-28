@@ -1,5 +1,6 @@
 import { client } from "./client";
 import type {
+  Assignment,
   Attendance,
   Course,
   CreateStudentDto,
@@ -29,7 +30,12 @@ export const studentService = {
     client.get<PaginatedResponse<Course>>("/student/courses").then((res) => res.data.data),
 
   getExams: () =>
-    client.get<ExamSubmission[]>("/student/exams").then((res) => res.data),
+    client
+      .get<PaginatedResponse<ExamSubmission>>("/student/exams")
+      .then((res) => res.data.data),
+
+  getAssignments: () =>
+    client.get<PaginatedResponse<Assignment>>("/student/assignments").then((res) => res.data.data),
 
   list: () =>
     client.get<PaginatedResponse<Student>>("/student").then((res) => res.data),
