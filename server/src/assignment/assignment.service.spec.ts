@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- jest matchers return any */
 import { AssignmentService } from './assignment.service';
@@ -198,6 +202,31 @@ describe('AssignmentService', () => {
       });
       expect(result.message).toBe('Assignment updated successfully');
     });
+
+    it('should reject updates to closed assignments', async () => {
+      prisma.assignment.findUnique.mockResolvedValue({
+        ...mockAssignment,
+        status: AssignmentStatus.CLOSED,
+      });
+
+      await expect(
+        service.update('assignment-1', { title: 'New title' }, adminRequester),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.assignment.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject manually closing an assignment', async () => {
+      prisma.assignment.findUnique.mockResolvedValue(mockAssignment);
+
+      await expect(
+        service.update(
+          'assignment-1',
+          { status: AssignmentStatus.CLOSED },
+          adminRequester,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.assignment.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('remove', () => {
@@ -219,6 +248,18 @@ describe('AssignmentService', () => {
         where: { id: 'assignment-1' },
       });
       expect(result.message).toBe('Assignment deleted successfully');
+    });
+
+    it('should reject deleting a closed assignment', async () => {
+      prisma.assignment.findUnique.mockResolvedValue({
+        ...mockAssignment,
+        status: AssignmentStatus.CLOSED,
+      });
+
+      await expect(service.remove('assignment-1', adminRequester)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.assignment.delete).not.toHaveBeenCalled();
     });
   });
 

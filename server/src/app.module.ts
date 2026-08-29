@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -11,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { AssignmentModule } from './assignment/assignment.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ExamModule } from './exam/exam.module';
+import { LifecycleModule } from './lifecycle/lifecycle.module';
 
 @Module({
   imports: [
@@ -18,6 +20,7 @@ import { ExamModule } from './exam/exam.module';
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'production' ? '.env' : '.env.test',
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     TeacherModule,
     StudentModule,
@@ -27,6 +30,7 @@ import { ExamModule } from './exam/exam.module';
     AssignmentModule,
     AttendanceModule,
     ExamModule,
+    LifecycleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

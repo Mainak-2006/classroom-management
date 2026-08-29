@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- jest matchers return any */
 import { ExamService } from './exam.service';
@@ -227,6 +231,27 @@ describe('ExamService', () => {
         data: expect.objectContaining({ examDate: new Date('2026-03-01') }),
       });
     });
+
+    it('should reject updates to closed exams', async () => {
+      prisma.exam.findUnique.mockResolvedValue({
+        ...mockExam,
+        status: ExamStatus.CLOSED,
+      });
+
+      await expect(
+        service.update('exam-1', { title: 'New title' }, adminRequester),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.exam.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject manually closing an exam', async () => {
+      prisma.exam.findUnique.mockResolvedValue(mockExam);
+
+      await expect(
+        service.update('exam-1', { status: ExamStatus.CLOSED }, adminRequester),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.exam.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('findByCourse', () => {
@@ -298,6 +323,22 @@ describe('ExamService', () => {
       expect(prisma.examSubmission.create).not.toHaveBeenCalled();
     });
 
+    it('should reject grades for a closed exam', async () => {
+      prisma.exam.findUnique.mockResolvedValue({
+        ...mockExam,
+        status: ExamStatus.CLOSED,
+      });
+
+      await expect(
+        service.submit(
+          'exam-1',
+          { studentId: 'student-1', score: 92 },
+          adminRequester,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.examSubmission.create).not.toHaveBeenCalled();
+    });
+
     it('should use the given submittedAt when provided', async () => {
       prisma.exam.findUnique.mockResolvedValue(mockExam);
       prisma.examSubmission.create.mockResolvedValue(mockSubmission);
@@ -349,6 +390,18 @@ describe('ExamService', () => {
         adminRequester,
       );
       expect(studentService.findOne).toHaveBeenCalledWith('student-2');
+    });
+
+    it('should reject grade updates for a closed exam', async () => {
+      prisma.examSubmission.findUnique.mockResolvedValue({
+        ...mockSubmission,
+        exam: { ...mockExam, status: ExamStatus.CLOSED },
+      });
+
+      await expect(
+        service.updateSubmission('submission-1', { score: 100 }, adminRequester),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.examSubmission.update).not.toHaveBeenCalled();
     });
 
     it('should convert submittedAt and return an envelope', async () => {
