@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -33,11 +35,21 @@ export class AdminService {
   ): Promise<SafeAdmin | null> {
     const admin = await this.prisma.admin.findUnique({ where: { email } });
 
-    if (admin && (await bcrypt.compare(password, admin.password))) {
-      return omit(admin, ['password']);
+    if (!admin) {
+      return null;
     }
 
-    return null;
+    const isValid = await bcrypt.compare(password, admin.password);
+
+    if (!isValid) {
+      return null;
+    }
+
+    if (!admin.isActive) {
+      throw new UnauthorizedException('Account has been deactivated');
+    }
+
+    return omit(admin, ['password']);
   }
 
   async create(createAdminDto: CreateAdminDto) {
@@ -51,6 +63,11 @@ export class AdminService {
     }
 
     await this.assertEmailAvailableAcrossAccounts(createAdminDto.email);
+
+    this.assertPasswordsMatch(
+      createAdminDto.password,
+      createAdminDto.confirmPassword,
+    );
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createAdminDto.password, salt);
@@ -158,6 +175,8 @@ export class AdminService {
         continue;
       }
 
+      this.assertPasswordsMatch(admin.password, admin.confirmPassword);
+
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(admin.password, salt);
 
@@ -181,21 +200,39 @@ export class AdminService {
     };
   }
 
-  private async assertEmailAvailableAcrossAccounts(email: string, ownAdminId?: string) {
+  private assertPasswordsMatch(password: string, confirmPassword?: string) {
+    if (confirmPassword !== undefined && confirmPassword !== password) {
+      throw new BadRequestException('Passwords do not match');
+    }
+  }
+
+  private async assertEmailAvailableAcrossAccounts(
+    email: string,
+    ownAdminId?: string,
+  ) {
     const prisma = this.prisma as unknown as {
-      student?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
-      teacher?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+      student?: {
+        findUnique: (args: unknown) => Promise<{ id: string } | null>;
+      };
+      teacher?: {
+        findUnique: (args: unknown) => Promise<{ id: string } | null>;
+      };
     };
     const [student, teacher] = await Promise.all([
       prisma.student?.findUnique({ where: { email } }) ?? Promise.resolve(null),
       prisma.teacher?.findUnique({ where: { email } }) ?? Promise.resolve(null),
     ]);
-    if (student || teacher) throw new ConflictException('An account with this email already exists.');
+    if (student || teacher)
+      throw new ConflictException('An account with this email already exists.');
     if (ownAdminId) {
-      const otherAdmin = await (this.prisma.admin.findFirst
-        ? this.prisma.admin.findFirst({ where: { email, id: { not: ownAdminId } }, select: { id: true } })
-        : Promise.resolve(null));
-      if (otherAdmin) throw new ConflictException('An account with this email already exists.');
+      const otherAdmin = await this.prisma.admin.findFirst({
+        where: { email, id: { not: ownAdminId } },
+        select: { id: true },
+      });
+      if (otherAdmin)
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
     }
   }
 }

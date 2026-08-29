@@ -9,6 +9,8 @@ describe('ContentLifecycleService', () => {
   let prisma: {
     assignment: { updateMany: jest.Mock };
     exam: { findMany: jest.Mock; updateMany: jest.Mock };
+    authSession: { deleteMany: jest.Mock };
+    revokedAccessToken: { deleteMany: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -17,6 +19,10 @@ describe('ContentLifecycleService', () => {
       exam: {
         findMany: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      authSession: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      revokedAccessToken: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -38,8 +44,16 @@ describe('ContentLifecycleService', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-02-01T12:00:00.000Z'));
     prisma.exam.findMany.mockResolvedValue([
-      { id: 'expired-exam', examDate: new Date('2026-02-01T09:00:00.000Z'), duration: 120 },
-      { id: 'future-exam', examDate: new Date('2026-02-01T11:00:00.000Z'), duration: 120 },
+      {
+        id: 'expired-exam',
+        examDate: new Date('2026-02-01T09:00:00.000Z'),
+        duration: 120,
+      },
+      {
+        id: 'future-exam',
+        examDate: new Date('2026-02-01T11:00:00.000Z'),
+        duration: 120,
+      },
     ]);
 
     await service.closeExpiredContent();
@@ -66,11 +80,30 @@ describe('ContentLifecycleService', () => {
 
   it('does not issue an exam update when no published exam has expired', async () => {
     prisma.exam.findMany.mockResolvedValue([
-      { id: 'future-exam', examDate: new Date('2099-01-01T09:00:00.000Z'), duration: 120 },
+      {
+        id: 'future-exam',
+        examDate: new Date('2099-01-01T09:00:00.000Z'),
+        duration: 120,
+      },
     ]);
 
     await service.closeExpiredContent();
 
     expect(prisma.exam.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('deletes expired auth sessions and revoked access tokens', async () => {
+    const now = new Date('2026-02-01T12:00:00.000Z');
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+
+    await service.sweepExpiredSessions();
+
+    expect(prisma.authSession.deleteMany).toHaveBeenCalledWith({
+      where: { expiresAt: { lt: now } },
+    });
+    expect(prisma.revokedAccessToken.deleteMany).toHaveBeenCalledWith({
+      where: { expiresAt: { lt: now } },
+    });
   });
 });

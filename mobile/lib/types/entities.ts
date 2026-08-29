@@ -48,9 +48,6 @@ export interface Student extends BasePerson {
 }
 
 export interface Course extends Timestamps {
-  dueDate: string | number | Date;
-  title: string;
-  status: AssignmentStatus;
   id: string;
   name: string;
   code: string;
@@ -111,7 +108,7 @@ export interface Exam extends Timestamps {
 }
 
 export interface ExamSubmission extends Timestamps {
-  exam: any;
+  exam: Exam & { course: Course };
   id: string;
   examId: string;
   studentId: string;

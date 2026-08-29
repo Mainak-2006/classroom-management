@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 import bcrypt from 'bcryptjs';
 
@@ -114,6 +118,18 @@ describe('StudentService', () => {
       await expect(
         service.validateStudent('missing@example.com', 'password123'),
       ).resolves.toBeNull();
+    });
+
+    it('should reject a deactivated account even with valid credentials', async () => {
+      prisma.student.findUnique.mockResolvedValue({
+        ...mockStudent,
+        isActive: false,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await expect(
+        service.validateStudent('student@example.com', 'password123'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 

@@ -14,6 +14,24 @@ export class ContentLifecycleService implements OnModuleInit {
     await this.closeExpiredContent();
   }
 
+  @Cron(CronExpression.EVERY_HOUR)
+  async sweepExpiredSessions() {
+    const now = new Date();
+
+    const [expiredSessions, revokedTokens] = await Promise.all([
+      this.prisma.authSession.deleteMany({ where: { expiresAt: { lt: now } } }),
+      this.prisma.revokedAccessToken.deleteMany({
+        where: { expiresAt: { lt: now } },
+      }),
+    ]);
+
+    if (expiredSessions.count || revokedTokens.count) {
+      this.logger.log(
+        `Swept ${expiredSessions.count} expired session(s) and ${revokedTokens.count} revoked access token(s)`,
+      );
+    }
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async closeExpiredContent() {
     const now = new Date();
@@ -31,7 +49,10 @@ export class ContentLifecycleService implements OnModuleInit {
       select: { id: true, examDate: true, duration: true },
     });
     const expiredExamIds = publishedExams
-      .filter((exam) => exam.examDate.getTime() + exam.duration * 60_000 <= now.getTime())
+      .filter(
+        (exam) =>
+          exam.examDate.getTime() + exam.duration * 60_000 <= now.getTime(),
+      )
       .map((exam) => exam.id);
 
     const closedExams = expiredExamIds.length

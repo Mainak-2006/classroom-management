@@ -27,7 +27,9 @@ describe('CourseController', () => {
     create: jest.Mock;
     createBulk: jest.Mock;
     findAll: jest.Mock;
+    findAllForRequester: jest.Mock;
     findOne: jest.Mock;
+    findOneForRequester: jest.Mock;
     findByTeacher: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
@@ -46,7 +48,9 @@ describe('CourseController', () => {
       create: jest.fn(),
       createBulk: jest.fn(),
       findAll: jest.fn(),
+      findAllForRequester: jest.fn(),
       findOne: jest.fn(),
+      findOneForRequester: jest.fn(),
       findByTeacher: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -85,14 +89,17 @@ describe('CourseController', () => {
     expect(courseService.createBulk).toHaveBeenCalledWith([validCourseDto]);
   });
 
-  it('GET / should delegate to findAll', async () => {
-    await controller.findAll();
-    expect(courseService.findAll).toHaveBeenCalled();
+  it('GET / should delegate to findAllForRequester', async () => {
+    await controller.findAll(requester);
+    expect(courseService.findAllForRequester).toHaveBeenCalledWith(requester);
   });
 
-  it('GET /:id should delegate to findOne', async () => {
-    await controller.findOne('course-1');
-    expect(courseService.findOne).toHaveBeenCalledWith('course-1');
+  it('GET /:id should delegate to findOneForRequester', async () => {
+    await controller.findOne('course-1', requester);
+    expect(courseService.findOneForRequester).toHaveBeenCalledWith(
+      'course-1',
+      requester,
+    );
   });
 
   it('PATCH /:id should delegate to update', async () => {

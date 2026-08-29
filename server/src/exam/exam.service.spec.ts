@@ -29,7 +29,7 @@ const mockExam = {
   duration: 120,
   totalMarks: 100,
   instructions: 'Closed book',
-  status: 'DRAFT',
+  status: 'PUBLISHED',
   isActive: true,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
@@ -90,6 +90,7 @@ describe('ExamService', () => {
       examSubmission: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
