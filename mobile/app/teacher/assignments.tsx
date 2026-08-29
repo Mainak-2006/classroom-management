@@ -60,7 +60,6 @@ export default function TeacherAssignmentsScreen() {
   // Sheet modals
   const [formSheetVisible, setFormSheetVisible] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
-  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -121,19 +120,6 @@ export default function TeacherAssignmentsScreen() {
   const handleOpenEdit = (assignment: Assignment) => {
     setEditingAssignment(assignment);
     setFormSheetVisible(true);
-  };
-
-  const handleStatusChange = async (assignment: Assignment, nextStatus: AssignmentStatus) => {
-    if (statusUpdatingId) return;
-    setStatusUpdatingId(assignment.id);
-    try {
-      await assignmentService.update(assignment.id, { status: nextStatus });
-      await loadData();
-    } catch (updateError) {
-      Alert.alert("Update Failed", getApiErrorMessage(updateError));
-    } finally {
-      setStatusUpdatingId(null);
-    }
   };
 
   const handleDelete = (assignment: Assignment) => {
@@ -295,7 +281,7 @@ export default function TeacherAssignmentsScreen() {
                 {filteredAssignments.map((assignment) => {
                   const course = courseMap.get(assignment.courseId);
                   const dueInfo = formatDueDate(assignment.dueDate);
-                  const isUpdating = statusUpdatingId === assignment.id;
+                  const isClosed = assignment.status === AssignmentStatus.CLOSED;
 
                   const statusBg =
                     assignment.status === AssignmentStatus.PUBLISHED
@@ -352,62 +338,27 @@ export default function TeacherAssignmentsScreen() {
                         </View>
                       </View>
 
-                      {/* Action Bar */}
-                      <View className="mt-4 flex-row items-center justify-between border-t border-slate-100 pt-3">
-                        <View className="flex-row items-center gap-2">
-                          {assignment.status === AssignmentStatus.DRAFT ? (
+                      {!isClosed ? (
+                        <View className="mt-4 flex-row justify-end border-t border-slate-100 pt-3">
+                          <View className="flex-row items-center gap-2">
                             <Pressable
-                              onPress={() =>
-                                handleStatusChange(assignment, AssignmentStatus.PUBLISHED)
-                              }
-                              disabled={isUpdating}
-                              className="rounded-lg bg-emerald-50 px-2.5 py-1"
+                              onPress={() => handleOpenEdit(assignment)}
+                              className="flex-row items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1"
                             >
-                              <Text className="text-xs font-semibold text-emerald-700">
-                                Publish
-                              </Text>
+                              <Ionicons name="pencil" size={12} color={colors.textMuted} />
+                              <Text className="text-xs font-medium text-slate-700">Edit</Text>
                             </Pressable>
-                          ) : assignment.status === AssignmentStatus.PUBLISHED ? (
-                            <Pressable
-                              onPress={() =>
-                                handleStatusChange(assignment, AssignmentStatus.CLOSED)
-                              }
-                              disabled={isUpdating}
-                              className="rounded-lg bg-slate-100 px-2.5 py-1"
-                            >
-                              <Text className="text-xs font-semibold text-slate-700">Close</Text>
-                            </Pressable>
-                          ) : (
-                            <Pressable
-                              onPress={() =>
-                                handleStatusChange(assignment, AssignmentStatus.PUBLISHED)
-                              }
-                              disabled={isUpdating}
-                              className="rounded-lg bg-emerald-50 px-2.5 py-1"
-                            >
-                              <Text className="text-xs font-semibold text-emerald-700">Reopen</Text>
-                            </Pressable>
-                          )}
-                        </View>
 
-                        <View className="flex-row items-center gap-2">
-                          <Pressable
-                            onPress={() => handleOpenEdit(assignment)}
-                            className="flex-row items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1"
-                          >
-                            <Ionicons name="pencil" size={12} color={colors.textMuted} />
-                            <Text className="text-xs font-medium text-slate-700">Edit</Text>
-                          </Pressable>
-
-                          <Pressable
-                            onPress={() => handleDelete(assignment)}
-                            className="flex-row items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1"
-                          >
-                            <Ionicons name="trash-outline" size={12} color="#EF4444" />
-                            <Text className="text-xs font-medium text-red-600">Delete</Text>
-                          </Pressable>
+                            <Pressable
+                              onPress={() => handleDelete(assignment)}
+                              className="flex-row items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1"
+                            >
+                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                              <Text className="text-xs font-medium text-red-600">Delete</Text>
+                            </Pressable>
+                          </View>
                         </View>
-                      </View>
+                      ) : null}
                     </View>
                   );
                 })}

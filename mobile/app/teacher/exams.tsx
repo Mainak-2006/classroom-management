@@ -275,6 +275,7 @@ export default function TeacherExamsScreen() {
               <View className="mt-4 gap-3">
                 {filteredExams.map((exam) => {
                   const course = courseMap.get(exam.courseId);
+                  const isClosed = exam.status === ExamStatus.CLOSED;
 
                   const statusColor =
                     exam.status === ExamStatus.PUBLISHED
@@ -328,7 +329,6 @@ export default function TeacherExamsScreen() {
                         </View>
                       </View>
 
-                      {/* Action Bar */}
                       <View className="mt-4 flex-row items-center justify-between border-t border-slate-100 pt-3">
                         <Pressable
                           onPress={() => handleOpenGrading(exam)}
@@ -340,23 +340,25 @@ export default function TeacherExamsScreen() {
                           </Text>
                         </Pressable>
 
-                        <View className="flex-row items-center gap-2">
-                          <Pressable
-                            onPress={() => handleOpenEdit(exam)}
-                            className="flex-row items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5"
-                          >
-                            <Ionicons name="pencil" size={12} color={colors.textMuted} />
-                            <Text className="text-xs font-medium text-slate-700">Edit</Text>
-                          </Pressable>
+                        {!isClosed ? (
+                          <View className="flex-row items-center gap-2">
+                            <Pressable
+                              onPress={() => handleOpenEdit(exam)}
+                              className="flex-row items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5"
+                            >
+                              <Ionicons name="pencil" size={12} color={colors.textMuted} />
+                              <Text className="text-xs font-medium text-slate-700">Edit</Text>
+                            </Pressable>
 
-                          <Pressable
-                            onPress={() => handleDelete(exam)}
-                            className="flex-row items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5"
-                          >
-                            <Ionicons name="trash-outline" size={12} color="#EF4444" />
-                            <Text className="text-xs font-medium text-red-600">Delete</Text>
-                          </Pressable>
-                        </View>
+                            <Pressable
+                              onPress={() => handleDelete(exam)}
+                              className="flex-row items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5"
+                            >
+                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                              <Text className="text-xs font-medium text-red-600">Delete</Text>
+                            </Pressable>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   );
