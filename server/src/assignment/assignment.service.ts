@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
@@ -18,6 +22,7 @@ export class AssignmentService {
     createAssignmentDto: CreateAssignmentDto,
     requester: AuthenticatedUser,
   ) {
+    this.assertStatusCanBeManaged(createAssignmentDto.status);
     await this.courseService.assertTeacherOwnsCourse(
       requester,
       createAssignmentDto.courseId,
@@ -76,6 +81,9 @@ export class AssignmentService {
       throw new NotFoundException('Assignment not found');
     }
 
+    this.assertNotClosed(existing.status);
+    this.assertStatusCanBeManaged(updateAssignmentDto.status);
+
     if (updateAssignmentDto.courseId) {
       await this.courseService.assertTeacherOwnsCourse(
         requester,
@@ -117,6 +125,8 @@ export class AssignmentService {
     if (!existing) {
       throw new NotFoundException('Assignment not found');
     }
+
+    this.assertNotClosed(existing.status);
 
     await this.courseService.assertTeacherOwnsCourse(
       requester,
@@ -193,5 +203,17 @@ export class AssignmentService {
       total: assignments.length,
       data: assignments,
     };
+  }
+
+  private assertNotClosed(status: AssignmentStatus) {
+    if (status === AssignmentStatus.CLOSED) {
+      throw new ConflictException('Closed assignments are read-only');
+    }
+  }
+
+  private assertStatusCanBeManaged(status?: AssignmentStatus) {
+    if (status === AssignmentStatus.CLOSED) {
+      throw new ConflictException('Assignments close automatically at their due date');
+    }
   }
 }

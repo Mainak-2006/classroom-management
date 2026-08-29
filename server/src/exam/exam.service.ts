@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ExamStatus } from '@prisma/client';
@@ -19,6 +23,7 @@ export class ExamService {
   ) {}
 
   async create(createExamDto: CreateExamDto, requester: AuthenticatedUser) {
+    this.assertStatusCanBeManaged(createExamDto.status);
     await this.courseService.assertTeacherOwnsCourse(
       requester,
       createExamDto.courseId,
@@ -74,6 +79,9 @@ export class ExamService {
       throw new NotFoundException('Exam not found');
     }
 
+    this.assertNotClosed(existing.status);
+    this.assertStatusCanBeManaged(updateExamDto.status);
+
     if (updateExamDto.courseId) {
       await this.courseService.assertTeacherOwnsCourse(
         requester,
@@ -110,6 +118,8 @@ export class ExamService {
     if (!existing) {
       throw new NotFoundException('Exam not found');
     }
+
+    this.assertNotClosed(existing.status);
 
     await this.courseService.assertTeacherOwnsCourse(
       requester,
@@ -152,6 +162,7 @@ export class ExamService {
     requester: AuthenticatedUser,
   ) {
     const exam = await this.findOne(examId);
+    this.assertNotClosed(exam.status);
     await this.courseService.assertTeacherOwnsCourse(requester, exam.courseId);
     await this.studentService.findOne(createExamSubmissionDto.studentId);
 
@@ -185,6 +196,8 @@ export class ExamService {
     if (!existing) {
       throw new NotFoundException('Exam submission not found');
     }
+
+    this.assertNotClosed(existing.exam.status);
 
     await this.courseService.assertTeacherOwnsCourse(
       requester,
@@ -241,5 +254,17 @@ export class ExamService {
       total: submissions.length,
       data: submissions,
     };
+  }
+
+  private assertNotClosed(status: ExamStatus) {
+    if (status === ExamStatus.CLOSED) {
+      throw new ConflictException('Closed exams are read-only');
+    }
+  }
+
+  private assertStatusCanBeManaged(status?: ExamStatus) {
+    if (status === ExamStatus.CLOSED) {
+      throw new ConflictException('Exams close automatically after their duration');
+    }
   }
 }
