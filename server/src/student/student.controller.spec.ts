@@ -68,7 +68,7 @@ describe('StudentController', () => {
 
       await controller.myAttendance(currentUser);
 
-      expect(attendanceService.findByStudent).toHaveBeenCalledWith('student-1');
+      expect(attendanceService.findByStudent).toHaveBeenCalledWith('student-1', currentUser);
     });
   });
 
@@ -88,7 +88,7 @@ describe('StudentController', () => {
 
       await controller.myExams(currentUser);
 
-      expect(examService.findByStudent).toHaveBeenCalledWith('student-1');
+      expect(examService.findByStudent).toHaveBeenCalledWith('student-1', currentUser);
     });
   });
 
@@ -98,7 +98,7 @@ describe('StudentController', () => {
 
       await controller.myAssignments(currentUser);
 
-      expect(assignmentService.findByStudent).toHaveBeenCalledWith('student-1');
+      expect(assignmentService.findByStudent).toHaveBeenCalledWith('student-1', currentUser);
     });
   });
 });

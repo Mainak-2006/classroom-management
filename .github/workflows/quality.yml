@@ -1,0 +1,35 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [server, mobile]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+        if: matrix.project == 'server'
+      - run: npm test -- --runInBand
+        if: matrix.project == 'server'
+      - run: npm run test:e2e
+        if: matrix.project == 'server'
+      - run: npm run build
+        if: matrix.project == 'server'
+      - run: npx tsc --noEmit
+        if: matrix.project == 'mobile'
+      - run: npm run lint
+        if: matrix.project == 'mobile'

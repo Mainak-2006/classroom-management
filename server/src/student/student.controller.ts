@@ -29,7 +29,7 @@ export class StudentController {
     private readonly assignmentService: AssignmentService,
   ) {}
 
-  @Roles(Role.ADMIN, Role.STUDENT)
+  @Roles(Role.ADMIN)
   @Post()
   create(@Body() createStudentDto: CreateStudentDto) {
     return this.studentService.create(createStudentDto);
@@ -48,10 +48,10 @@ export class StudentController {
   }
 
   // Get own attendance
-  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.STUDENT)
   @Get('attendance')
   myAttendance(@CurrentUser() user: AuthenticatedUser) {
-    return this.attendanceService.findByStudent(user.id);
+    return this.attendanceService.findByStudent(user.id, user);
   }
 
   // Get own courses
@@ -65,17 +65,17 @@ export class StudentController {
   @Roles(Role.STUDENT)
   @Get('exams')
   myExams(@CurrentUser() user: AuthenticatedUser) {
-    return this.examService.findByStudent(user.id);
+    return this.examService.findByStudent(user.id, user);
   }
 
   // Get own assignments
   @Roles(Role.STUDENT)
   @Get('assignments')
   myAssignments(@CurrentUser() user: AuthenticatedUser) {
-    return this.assignmentService.findByStudent(user.id);
+    return this.assignmentService.findByStudent(user.id, user);
   }
 
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN)
   @Get()
   findAll() {
     return this.studentService.findAll();
@@ -83,19 +83,19 @@ export class StudentController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.studentService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.findOneForRequester(id, user);
   }
 
   @Roles(Role.ADMIN, Role.STUDENT)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto) {
-    return this.studentService.update(id, updateStudentDto);
+  update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.update(id, updateStudentDto, user);
   }
 
-  @Roles(Role.ADMIN, Role.STUDENT)
+  @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.studentService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.remove(id, user);
   }
 }

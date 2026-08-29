@@ -16,6 +16,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { CreateAssignmentSubmissionDto } from './dto/create-assignment-submission.dto';
+import { GradeAssignmentSubmissionDto } from './dto/grade-assignment-submission.dto';
 
 @Controller('assignment')
 export class AssignmentController {
@@ -31,8 +33,8 @@ export class AssignmentController {
   }
 
   @Get()
-  findAll() {
-    return this.assignmentService.findAll();
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findAll(user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -53,19 +55,44 @@ export class AssignmentController {
 
   // Find assignments by course
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string) {
-    return this.assignmentService.findByCourse(courseId);
+  findByCourse(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findByCourse(courseId, user);
   }
 
   // Find assignments by status
   @Get('status/:status')
-  findByStatus(@Param('status') status: AssignmentStatus) {
-    return this.assignmentService.findByStatus(status);
+  @Roles(Role.ADMIN)
+  findByStatus(@Param('status') status: AssignmentStatus, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findByStatus(status, user);
+  }
+
+  @Roles(Role.STUDENT)
+  @Post(':id/submissions')
+  submit(@Param('id') id: string, @Body() dto: CreateAssignmentSubmissionDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.submit(id, dto, user);
+  }
+
+  @Roles(Role.STUDENT)
+  @Get(':id/submissions/me')
+  mySubmission(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findMySubmission(id, user);
+  }
+
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @Get(':id/submissions')
+  submissions(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findSubmissions(id, user);
+  }
+
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @Patch('submissions/:submissionId')
+  grade(@Param('submissionId') submissionId: string, @Body() dto: GradeAssignmentSubmissionDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.gradeSubmission(submissionId, dto, user);
   }
 
   // Get a single assignment by id (must be last to avoid shadowing other routes)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.assignmentService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignmentService.findOne(id, user);
   }
 }

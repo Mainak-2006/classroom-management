@@ -36,8 +36,10 @@ export class CourseController {
   }
 
   @Get()
-  findAll() {
-    return this.courseService.findAll();
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.courseService.findAllForRequester
+      ? this.courseService.findAllForRequester(user)
+      : this.courseService.findAll();
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -105,37 +107,53 @@ export class CourseController {
 
   // Get course students
   @Get(':id/students')
-  getCourseStudents(@Param('id') courseId: string) {
-    return this.courseService.getCourseStudents(courseId);
+  getCourseStudents(@Param('id') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+    return user === undefined
+      ? this.courseService.getCourseStudents(courseId)
+      : this.courseService.getCourseStudents(courseId, user);
   }
 
   // Get course teacher
   @Get(':id/teacher')
-  getCourseTeacher(@Param('id') courseId: string) {
-    return this.courseService.getCourseTeacher(courseId);
+  getCourseTeacher(@Param('id') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+    return user === undefined
+      ? this.courseService.getCourseTeacher(courseId)
+      : this.courseService.getCourseTeacher(courseId, user);
   }
 
   // Find courses by semester
+  @Roles(Role.ADMIN)
   @Get('semester/:semester')
-  findBySemester(@Param('semester') semester: string) {
-    return this.courseService.findBySemester(+semester);
+  findBySemester(@Param('semester') semester: string, @CurrentUser() user: AuthenticatedUser) {
+    return user === undefined
+      ? this.courseService.findBySemester(+semester)
+      : this.courseService.findBySemester(+semester, user);
   }
 
   // Find courses by department
+  @Roles(Role.ADMIN)
   @Get('department/:department')
-  findByDepartment(@Param('department') department: string) {
-    return this.courseService.findByDepartment(department);
+  findByDepartment(@Param('department') department: string, @CurrentUser() user: AuthenticatedUser) {
+    return user === undefined
+      ? this.courseService.findByDepartment(department)
+      : this.courseService.findByDepartment(department, user);
   }
 
   // Find courses taught by a teacher
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Get('teacher/:teacherId')
-  findByTeacher(@Param('teacherId') teacherId: string) {
+  findByTeacher(@Param('teacherId') teacherId: string, @CurrentUser() user: AuthenticatedUser) {
+    if (user?.role === Role.TEACHER && user.id !== teacherId) {
+      return this.courseService.findByTeacher(user.id);
+    }
     return this.courseService.findByTeacher(teacherId);
   }
 
   // Get a single course by id (must be last to avoid shadowing other routes)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.courseService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.courseService.findOneForRequester
+      ? this.courseService.findOneForRequester(id, user)
+      : this.courseService.findOne(id);
   }
 }

@@ -26,7 +26,7 @@ export class TeacherController {
     private readonly courseService: CourseService,
   ) {}
 
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN)
   @Post()
   create(@Body() createTeacherDto: CreateTeacherDto) {
     return this.teacherService.create(createTeacherDto);
@@ -38,6 +38,7 @@ export class TeacherController {
     return this.teacherService.createBulk(teachers);
   }
 
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
     return this.teacherService.findOne(user.id);
@@ -47,21 +48,23 @@ export class TeacherController {
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get('courses')
   myCourses(@CurrentUser() user: AuthenticatedUser) {
-    return this.courseService.findByTeacher(user.id);
+    return user.role === Role.ADMIN
+      ? this.courseService.findAll()
+      : this.courseService.findByTeacher(user.id);
   }
 
   // Mark attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post('attendance')
-  markAttendance(@Body() createAttendanceDto: CreateAttendanceDto) {
-    return this.attendanceService.create(createAttendanceDto);
+  markAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.attendanceService.create(createAttendanceDto, user);
   }
 
   // View attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get('attendance/course/:courseId')
-  courseAttendance(@Param('courseId') courseId: string) {
-    return this.attendanceService.findByCourse(courseId);
+  courseAttendance(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.attendanceService.findByCourse(courseId, user);
   }
 
   @Roles(Role.ADMIN)
@@ -72,19 +75,19 @@ export class TeacherController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.teacherService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.teacherService.findOneForRequester(id, user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTeacherDto: UpdateTeacherDto) {
-    return this.teacherService.update(id, updateTeacherDto);
+  update(@Param('id') id: string, @Body() updateTeacherDto: UpdateTeacherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.teacherService.update(id, updateTeacherDto, user);
   }
 
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.teacherService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.teacherService.remove(id, user);
   }
 }

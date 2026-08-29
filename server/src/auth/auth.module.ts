@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { RefreshTokenStore } from './tokens/refresh-token-store.service';
 import { JWT_CONSTANTS } from './jwt.constants';
@@ -43,6 +44,7 @@ import { AdminModule } from '../admin/admin.module';
     AuthService,
     JwtStrategy,
     RefreshTokenStore,
+    AuthRateLimitGuard,
 
     {
       provide: APP_GUARD,

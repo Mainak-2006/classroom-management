@@ -1,11 +1,14 @@
 import { client } from "./client";
 import type {
   Assignment,
+  AssignmentSubmission,
   AssignmentStatus,
   CreateAssignmentDto,
   MessageResponse,
   PaginatedResponse,
   UpdateAssignmentDto,
+  CreateAssignmentSubmissionDto,
+  GradeAssignmentSubmissionDto,
 } from "../types";
 
 export const assignmentService = {
@@ -33,4 +36,16 @@ export const assignmentService = {
     client
       .get<PaginatedResponse<Assignment> | Assignment[]>(`/assignment/status/${status}`)
       .then((res) => (Array.isArray(res.data) ? res.data : (res.data?.data ?? []))),
+
+  submit: (assignmentId: string, data: CreateAssignmentSubmissionDto) =>
+    client.post<MessageResponse<AssignmentSubmission>>(`/assignment/${assignmentId}/submissions`, data).then((res) => res.data),
+
+  mySubmission: (assignmentId: string) =>
+    client.get<AssignmentSubmission>(`/assignment/${assignmentId}/submissions/me`).then((res) => res.data),
+
+  submissions: (assignmentId: string) =>
+    client.get<PaginatedResponse<AssignmentSubmission>>(`/assignment/${assignmentId}/submissions`).then((res) => res.data),
+
+  gradeSubmission: (submissionId: string, data: GradeAssignmentSubmissionDto) =>
+    client.patch<MessageResponse<AssignmentSubmission>>(`/assignment/submissions/${submissionId}`, data).then((res) => res.data),
 };

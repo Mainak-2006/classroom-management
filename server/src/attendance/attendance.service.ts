@@ -10,6 +10,7 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 function dayRange(date: Date) {
   const start = new Date(date);
@@ -66,11 +67,17 @@ export class AttendanceService {
     }
   }
 
-  async create(createAttendanceDto: CreateAttendanceDto) {
+  async create(createAttendanceDto: CreateAttendanceDto, requester?: AuthenticatedUser) {
+    if (requester) {
+      await this.courseService.assertTeacherOwnsCourse(requester, createAttendanceDto.courseId);
+    }
     await this.validateReferences(
       createAttendanceDto.studentId,
       createAttendanceDto.courseId,
     );
+    if (this.courseService.assertStudentEnrolled) {
+      await this.courseService.assertStudentEnrolled(createAttendanceDto.courseId, createAttendanceDto.studentId);
+    }
 
     const date = new Date(createAttendanceDto.date);
 
@@ -96,14 +103,20 @@ export class AttendanceService {
     };
   }
 
-  async createBulk(records: CreateAttendanceDto[]) {
+  async createBulk(records: CreateAttendanceDto[], requester?: AuthenticatedUser) {
     const createdRecords: Attendance[] = [];
 
     for (const createAttendanceDto of records) {
+      if (requester) {
+        await this.courseService.assertTeacherOwnsCourse(requester, createAttendanceDto.courseId);
+      }
       await this.validateReferences(
         createAttendanceDto.studentId,
         createAttendanceDto.courseId,
       );
+      if (this.courseService.assertStudentEnrolled) {
+        await this.courseService.assertStudentEnrolled(createAttendanceDto.courseId, createAttendanceDto.studentId);
+      }
 
       const date = new Date(createAttendanceDto.date);
 
@@ -133,7 +146,10 @@ export class AttendanceService {
     };
   }
 
-  async findAll() {
+  async findAll(requester?: AuthenticatedUser) {
+    if (requester && requester.role !== 'admin') {
+      throw new ConflictException('Only administrators can view all attendance');
+    }
     const records = await this.prisma.attendance.findMany();
 
     return {
@@ -142,17 +158,19 @@ export class AttendanceService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requester?: AuthenticatedUser) {
     const record = await this.prisma.attendance.findUnique({ where: { id } });
 
     if (!record) {
       throw new NotFoundException('Attendance record not found');
     }
 
+    if (requester) await this.courseService.assertCanViewCourse(requester, record.courseId);
+
     return record;
   }
 
-  async update(id: string, updateAttendanceDto: UpdateAttendanceDto) {
+  async update(id: string, updateAttendanceDto: UpdateAttendanceDto, requester?: AuthenticatedUser) {
     const existing = await this.prisma.attendance.findUnique({
       where: { id },
     });
@@ -161,10 +179,18 @@ export class AttendanceService {
       throw new NotFoundException('Attendance record not found');
     }
 
+    if (requester) await this.courseService.assertTeacherOwnsCourse(requester, existing.courseId);
+
     const studentId = updateAttendanceDto.studentId ?? existing.studentId;
     const courseId = updateAttendanceDto.courseId ?? existing.courseId;
 
     await this.validateReferences(studentId, courseId, existing.studentId);
+    if (this.courseService.assertStudentEnrolled) {
+      await this.courseService.assertStudentEnrolled(courseId, studentId);
+    }
+    if (requester && courseId !== existing.courseId) {
+      await this.courseService.assertTeacherOwnsCourse(requester, courseId);
+    }
 
     const date = updateAttendanceDto.date
       ? new Date(updateAttendanceDto.date)
@@ -189,7 +215,7 @@ export class AttendanceService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester?: AuthenticatedUser) {
     const existing = await this.prisma.attendance.findUnique({
       where: { id },
     });
@@ -197,6 +223,7 @@ export class AttendanceService {
     if (!existing) {
       throw new NotFoundException('Attendance record not found');
     }
+    if (requester) await this.courseService.assertTeacherOwnsCourse(requester, existing.courseId);
 
     const deletedRecord = await this.prisma.attendance.delete({
       where: { id },
@@ -209,11 +236,14 @@ export class AttendanceService {
   }
 
   // Find attendance records by course
-  async findByCourse(courseId: string) {
-    await this.courseService.findOne(courseId);
+  async findByCourse(courseId: string, requester?: AuthenticatedUser) {
+    if (requester) await this.courseService.assertCanViewCourse(requester, courseId);
+    else await this.courseService.findOne(courseId);
 
     const records = await this.prisma.attendance.findMany({
-      where: { courseId },
+      where: requester?.role === 'student'
+        ? { courseId, studentId: requester.id }
+        : { courseId },
     });
 
     return {
@@ -223,7 +253,10 @@ export class AttendanceService {
   }
 
   // Find attendance records by student
-  async findByStudent(studentId: string) {
+  async findByStudent(studentId: string, requester?: AuthenticatedUser) {
+    if (requester && requester.id !== studentId && requester.role !== 'admin') {
+      throw new ConflictException('You can only view your own attendance');
+    }
     const records = await this.prisma.attendance.findMany({
       where: { studentId },
     });
@@ -235,7 +268,10 @@ export class AttendanceService {
   }
 
   // Find attendance records by date
-  async findByDate(date: string) {
+  async findByDate(date: string, requester?: AuthenticatedUser) {
+    if (requester && requester.role !== 'admin') {
+      throw new ConflictException('Only administrators can search attendance by date');
+    }
     const { start, end } = dayRange(new Date(date));
 
     const records = await this.prisma.attendance.findMany({
@@ -249,16 +285,16 @@ export class AttendanceService {
   }
 
   // Find attendance records by course and date
-  async findByCourseAndDate(courseId: string, date: string) {
-    await this.courseService.findOne(courseId);
+  async findByCourseAndDate(courseId: string, date: string, requester?: AuthenticatedUser) {
+    if (requester) await this.courseService.assertCanViewCourse(requester, courseId);
+    else await this.courseService.findOne(courseId);
 
     const { start, end } = dayRange(new Date(date));
 
     const records = await this.prisma.attendance.findMany({
-      where: {
-        courseId,
-        date: { gte: start, lt: end },
-      },
+      where: requester?.role === 'student'
+        ? { courseId, studentId: requester.id, date: { gte: start, lt: end } }
+        : { courseId, date: { gte: start, lt: end } },
     });
 
     return {

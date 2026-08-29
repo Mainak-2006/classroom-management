@@ -52,7 +52,7 @@ export default function ProfileEditSheet({
       backdropOpacity.value = withTiming(0, { duration: 200 });
     }
     prevVisible.current = visible;
-  }, [visible, shown, height]);
+  }, [visible, shown, height, backdropOpacity, translateY]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,

@@ -86,6 +86,12 @@ export class CourseService {
     };
   }
 
+  async findAllForRequester(requester: AuthenticatedUser) {
+    if (requester.role === Role.ADMIN) return this.findAll();
+    if (requester.role === Role.TEACHER) return this.findByTeacher(requester.id);
+    return this.findByStudent(requester.id);
+  }
+
   async findOne(id: string) {
     const course = await this.prisma.course.findUnique({
       where: { id },
@@ -97,6 +103,11 @@ export class CourseService {
     }
 
     return course;
+  }
+
+  async findOneForRequester(id: string, requester: AuthenticatedUser) {
+    await this.assertCanViewCourse(requester, id);
+    return this.findOne(id);
   }
 
   async update(
@@ -337,7 +348,8 @@ export class CourseService {
   }
 
   // Get course teacher
-  async getCourseTeacher(courseId: string) {
+  async getCourseTeacher(courseId: string, requester?: AuthenticatedUser) {
+    if (requester) await this.assertCanViewCourse(requester, courseId);
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: { teacher: true },
@@ -355,7 +367,11 @@ export class CourseService {
   }
 
   // Get course students
-  async getCourseStudents(courseId: string) {
+  async getCourseStudents(courseId: string, requester?: AuthenticatedUser) {
+    if (requester?.role === Role.STUDENT) {
+      throw new ForbiddenException('Students cannot view the course roster');
+    }
+    if (requester) await this.assertCanViewCourse(requester, courseId);
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: { students: true },
@@ -418,6 +434,29 @@ export class CourseService {
     this.assertTeacherOwnership(requester, course);
   }
 
+  async assertCanViewCourse(requester: AuthenticatedUser, courseId: string) {
+    if (requester.role === Role.ADMIN) return;
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { teacherId: true, students: { where: { id: requester.id }, select: { id: true } } },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    if (requester.role === Role.TEACHER && course.teacherId === requester.id) return;
+    if (requester.role === Role.STUDENT && course.students.length > 0) return;
+    throw new ForbiddenException('You do not have access to this course');
+  }
+
+  async assertStudentEnrolled(courseId: string, studentId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { students: { where: { id: studentId }, select: { id: true } } },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    if (!course.students.length) {
+      throw new ForbiddenException('Student is not enrolled in this course');
+    }
+  }
+
   private assertTeacherOwnership(
     requester: AuthenticatedUser,
     course: { teacherId: string | null },
@@ -430,7 +469,10 @@ export class CourseService {
   }
 
   // Find courses by semester
-  async findBySemester(semester: number) {
+  async findBySemester(semester: number, requester?: AuthenticatedUser) {
+    if (requester && requester.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only administrators can browse courses by semester');
+    }
     const courses = await this.prisma.course.findMany({
       where: { semester },
       include: courseInclude,
@@ -443,7 +485,10 @@ export class CourseService {
   }
 
   // Find courses by department
-  async findByDepartment(department: string) {
+  async findByDepartment(department: string, requester?: AuthenticatedUser) {
+    if (requester && requester.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only administrators can browse courses by department');
+    }
     const courses = await this.prisma.course.findMany({
       where: {
         department: { equals: department, mode: 'insensitive' },

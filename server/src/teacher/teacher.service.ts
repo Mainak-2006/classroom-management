@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -9,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import type { Teacher } from '@prisma/client';
+import { Role } from '../auth/enums/role.enum';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 type SafeTeacher = Omit<Teacher, 'password'>;
 
@@ -57,6 +60,8 @@ export class TeacherService {
       );
     }
 
+    await this.assertEmailAvailableAcrossAccounts(createTeacherDto.email);
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createTeacherDto.password, salt);
 
@@ -95,7 +100,19 @@ export class TeacherService {
     return omit(teacher, ['password']);
   }
 
-  async update(id: string, updateTeacherDto: UpdateTeacherDto) {
+  async findOneForRequester(id: string, requester: AuthenticatedUser) {
+    if (requester.role === Role.ADMIN || (requester.role === Role.TEACHER && requester.id === id)) {
+      return this.findOne(id);
+    }
+    throw new ForbiddenException('You are not allowed to view this teacher');
+  }
+
+  async update(
+    id: string,
+    updateTeacherDto: UpdateTeacherDto,
+    requester?: AuthenticatedUser,
+  ) {
+    this.assertCanManage(id, requester, false);
     const exists = await this.prisma.teacher.findUnique({
       where: { id },
       select: { id: true },
@@ -103,6 +120,10 @@ export class TeacherService {
 
     if (!exists) {
       throw new NotFoundException('Teacher not found');
+    }
+
+    if (updateTeacherDto.email) {
+      await this.assertEmailAvailableAcrossAccounts(updateTeacherDto.email, id);
     }
 
     const { confirmPassword, password, ...rest } = updateTeacherDto;
@@ -128,7 +149,8 @@ export class TeacherService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester?: AuthenticatedUser) {
+    this.assertCanManage(id, requester, true);
     const exists = await this.prisma.teacher.findUnique({
       where: { id },
       select: { id: true },
@@ -182,5 +204,44 @@ export class TeacherService {
       total: createdTeachers.length,
       data: createdTeachers.map((teacher) => omit(teacher, ['password'])),
     };
+  }
+
+  private assertCanManage(
+    id: string,
+    requester: AuthenticatedUser | undefined,
+    deleting: boolean,
+  ) {
+    if (!requester || requester.role === Role.ADMIN) return;
+    if (!deleting && requester.role === Role.TEACHER && requester.id === id) return;
+    throw new ForbiddenException(
+      deleting
+        ? 'Only administrators can delete teacher accounts'
+        : 'You can only update your own teacher profile',
+    );
+  }
+
+  private async assertEmailAvailableAcrossAccounts(
+    email: string,
+    ownTeacherId?: string,
+  ) {
+    const prisma = this.prisma as unknown as {
+      student?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+      admin?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+    };
+    const [student, admin] = await Promise.all([
+      prisma.student?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+      prisma.admin?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+    ]);
+    if (student || admin) {
+      throw new ConflictException('An account with this email already exists.');
+    }
+    if (ownTeacherId) {
+      const otherTeacher = await (this.prisma.teacher.findFirst
+        ? this.prisma.teacher.findFirst({ where: { email, id: { not: ownTeacherId } }, select: { id: true } })
+        : Promise.resolve(null));
+      if (otherTeacher) {
+        throw new ConflictException('An account with this email already exists.');
+      }
+    }
   }
 }

@@ -1,87 +1,74 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 
+import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '../enums/role.enum';
-
-interface StoredToken {
-  userId: string;
-  role: UserRole;
-  expiresAt: number;
-}
 
 @Injectable()
 export class RefreshTokenStore {
-  private readonly refreshTokens = new Map<string, StoredToken>();
-  private readonly accessTokenBlacklist = new Map<string, number>();
+  constructor(private readonly prisma: PrismaService) {}
 
   private hash(tokenId: string): string {
     return createHash('sha256').update(tokenId).digest('hex');
   }
 
-  save(
+  async save(
     tokenId: string,
     payload: { userId: string; role: UserRole },
     expiresAt: number,
-  ): void {
-    this.cleanupExpired();
-    this.refreshTokens.set(this.hash(tokenId), {
-      userId: payload.userId,
-      role: payload.role,
-      expiresAt,
+  ): Promise<void> {
+    await this.prisma.authSession.upsert({
+      where: { id: this.hash(tokenId) },
+      create: {
+        id: this.hash(tokenId),
+        userId: payload.userId,
+        role: payload.role,
+        expiresAt: new Date(expiresAt),
+      },
+      update: {
+        userId: payload.userId,
+        role: payload.role,
+        expiresAt: new Date(expiresAt),
+        revokedAt: null,
+      },
     });
   }
 
-  isValid(tokenId: string): boolean {
-    const entry = this.refreshTokens.get(this.hash(tokenId));
-    if (!entry) {
-      return false;
-    }
-    if (Date.now() > entry.expiresAt) {
-      this.refreshTokens.delete(this.hash(tokenId));
-      return false;
-    }
-    return true;
+  async isValid(tokenId: string): Promise<boolean> {
+    const entry = await this.prisma.authSession.findUnique({
+      where: { id: this.hash(tokenId) },
+      select: { expiresAt: true, revokedAt: true },
+    });
+    return Boolean(entry && !entry.revokedAt && entry.expiresAt > new Date());
   }
 
-  revoke(tokenId: string): void {
-    this.refreshTokens.delete(this.hash(tokenId));
+  async revoke(tokenId: string): Promise<void> {
+    await this.prisma.authSession.updateMany({
+      where: { id: this.hash(tokenId), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 
-  revokeAllForUser(userId: string): void {
-    for (const [hash, entry] of this.refreshTokens.entries()) {
-      if (entry.userId === userId) {
-        this.refreshTokens.delete(hash);
-      }
-    }
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.prisma.authSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 
-  blacklistAccessToken(tokenId: string, expiresAt: number): void {
-    this.accessTokenBlacklist.set(this.hash(tokenId), expiresAt);
+  async blacklistAccessToken(tokenId: string, expiresAt: number): Promise<void> {
+    await this.prisma.revokedAccessToken.upsert({
+      where: { id: this.hash(tokenId) },
+      create: { id: this.hash(tokenId), expiresAt: new Date(expiresAt) },
+      update: { expiresAt: new Date(expiresAt) },
+    });
   }
 
-  isAccessTokenBlacklisted(tokenId: string): boolean {
-    const expiresAt = this.accessTokenBlacklist.get(this.hash(tokenId));
-    if (!expiresAt) {
-      return false;
-    }
-    if (Date.now() > expiresAt) {
-      this.accessTokenBlacklist.delete(this.hash(tokenId));
-      return false;
-    }
-    return true;
-  }
-
-  private cleanupExpired(): void {
-    const now = Date.now();
-    for (const [hash, entry] of this.refreshTokens.entries()) {
-      if (now > entry.expiresAt) {
-        this.refreshTokens.delete(hash);
-      }
-    }
-    for (const [hash, expiresAt] of this.accessTokenBlacklist.entries()) {
-      if (now > expiresAt) {
-        this.accessTokenBlacklist.delete(hash);
-      }
-    }
+  async isAccessTokenBlacklisted(tokenId: string): Promise<boolean> {
+    const entry = await this.prisma.revokedAccessToken.findUnique({
+      where: { id: this.hash(tokenId) },
+      select: { expiresAt: true },
+    });
+    return Boolean(entry && entry.expiresAt > new Date());
   }
 }
