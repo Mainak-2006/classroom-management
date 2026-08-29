@@ -32,7 +32,6 @@ interface FormState {
 const STATUSES: { value: AssignmentStatus; label: string }[] = [
   { value: AssignmentStatus.DRAFT, label: "Draft" },
   { value: AssignmentStatus.PUBLISHED, label: "Published" },
-  { value: AssignmentStatus.CLOSED, label: "Closed" },
 ];
 
 function AssignmentFormContent({

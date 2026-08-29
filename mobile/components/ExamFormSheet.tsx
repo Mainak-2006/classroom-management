@@ -33,7 +33,6 @@ interface FormState {
 const STATUSES: { value: ExamStatus; label: string }[] = [
   { value: ExamStatus.PUBLISHED, label: "Published" },
   { value: ExamStatus.DRAFT, label: "Draft" },
-  { value: ExamStatus.CLOSED, label: "Closed" },
 ];
 
 function ExamFormContent({
