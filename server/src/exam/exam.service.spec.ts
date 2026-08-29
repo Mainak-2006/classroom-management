@@ -323,11 +323,12 @@ describe('ExamService', () => {
       expect(prisma.examSubmission.create).not.toHaveBeenCalled();
     });
 
-    it('should reject grades for a closed exam', async () => {
+    it('should allow grades to be recorded for a closed exam', async () => {
       prisma.exam.findUnique.mockResolvedValue({
         ...mockExam,
         status: ExamStatus.CLOSED,
       });
+      prisma.examSubmission.create.mockResolvedValue(mockSubmission);
 
       await expect(
         service.submit(
@@ -335,8 +336,15 @@ describe('ExamService', () => {
           { studentId: 'student-1', score: 92 },
           adminRequester,
         ),
-      ).rejects.toThrow(ConflictException);
-      expect(prisma.examSubmission.create).not.toHaveBeenCalled();
+      ).resolves.toEqual({
+        message: 'Exam submitted successfully',
+        data: mockSubmission,
+      });
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
+      );
+      expect(prisma.examSubmission.create).toHaveBeenCalled();
     });
 
     it('should use the given submittedAt when provided', async () => {
@@ -392,16 +400,30 @@ describe('ExamService', () => {
       expect(studentService.findOne).toHaveBeenCalledWith('student-2');
     });
 
-    it('should reject grade updates for a closed exam', async () => {
+    it('should allow grade updates for a closed exam', async () => {
       prisma.examSubmission.findUnique.mockResolvedValue({
         ...mockSubmission,
         exam: { ...mockExam, status: ExamStatus.CLOSED },
       });
+      prisma.examSubmission.update.mockResolvedValue({
+        ...mockSubmission,
+        score: 100,
+      });
 
-      await expect(
-        service.updateSubmission('submission-1', { score: 100 }, adminRequester),
-      ).rejects.toThrow(ConflictException);
-      expect(prisma.examSubmission.update).not.toHaveBeenCalled();
+      await service.updateSubmission(
+        'submission-1',
+        { score: 100 },
+        adminRequester,
+      );
+
+      expect(courseService.assertTeacherOwnsCourse).toHaveBeenCalledWith(
+        adminRequester,
+        'course-1',
+      );
+      expect(prisma.examSubmission.update).toHaveBeenCalledWith({
+        where: { id: 'submission-1' },
+        data: { score: 100 },
+      });
     });
 
     it('should convert submittedAt and return an envelope', async () => {
@@ -458,6 +480,23 @@ describe('ExamService', () => {
         include: { exam: { include: { course: true } } },
       });
       expect(result).toEqual({ total: 1, data: [mockSubmission] });
+    });
+
+    it('should include results from closed exams', async () => {
+      const closedExamSubmission = {
+        ...mockSubmission,
+        exam: { ...mockExam, status: ExamStatus.CLOSED },
+      };
+      prisma.examSubmission.findMany.mockResolvedValue([closedExamSubmission]);
+
+      await expect(service.findByStudent('student-1')).resolves.toEqual({
+        total: 1,
+        data: [closedExamSubmission],
+      });
+      expect(prisma.examSubmission.findMany).toHaveBeenCalledWith({
+        where: { studentId: 'student-1' },
+        include: { exam: { include: { course: true } } },
+      });
     });
 
     it('should throw NotFoundException when the student does not exist', async () => {

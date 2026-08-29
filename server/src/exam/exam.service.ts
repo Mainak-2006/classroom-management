@@ -162,7 +162,6 @@ export class ExamService {
     requester: AuthenticatedUser,
   ) {
     const exam = await this.findOne(examId);
-    this.assertNotClosed(exam.status);
     await this.courseService.assertTeacherOwnsCourse(requester, exam.courseId);
     await this.studentService.findOne(createExamSubmissionDto.studentId);
 
@@ -196,8 +195,6 @@ export class ExamService {
     if (!existing) {
       throw new NotFoundException('Exam submission not found');
     }
-
-    this.assertNotClosed(existing.exam.status);
 
     await this.courseService.assertTeacherOwnsCourse(
       requester,
