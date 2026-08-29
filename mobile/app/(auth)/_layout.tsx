@@ -12,7 +12,7 @@ export default function AuthLayout() {
   }
 
   if (status === "authenticated") {
-    return <Redirect href={homeForRole(role) as any} />;
+    return <Redirect href={homeForRole(role)} />;
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;

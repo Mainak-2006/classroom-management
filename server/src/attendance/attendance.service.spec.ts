@@ -31,7 +31,7 @@ describe('AttendanceService', () => {
       delete: jest.Mock;
     };
   };
-  let courseService: { findOne: jest.Mock };
+  let courseService: { findOne: jest.Mock; assertStudentEnrolled: jest.Mock };
   let studentService: { findOne: jest.Mock };
 
   const createDto = {
@@ -55,6 +55,7 @@ describe('AttendanceService', () => {
 
     courseService = {
       findOne: jest.fn().mockResolvedValue({ id: 'course-1' }),
+      assertStudentEnrolled: jest.fn().mockResolvedValue(undefined),
     };
     studentService = {
       findOne: jest.fn().mockResolvedValue({ id: 'student-1' }),

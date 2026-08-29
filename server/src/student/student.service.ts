@@ -3,6 +3,8 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -49,6 +51,11 @@ export class StudentService {
 
     await this.assertEmailAvailableAcrossAccounts(createStudentDto.email);
 
+    this.assertPasswordsMatch(
+      createStudentDto.password,
+      createStudentDto.confirmPassword,
+    );
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createStudentDto.password, salt);
 
@@ -88,7 +95,10 @@ export class StudentService {
   }
 
   async findOneForRequester(id: string, requester: AuthenticatedUser) {
-    if (requester.role === Role.ADMIN || (requester.role === Role.STUDENT && requester.id === id)) {
+    if (
+      requester.role === Role.ADMIN ||
+      (requester.role === Role.STUDENT && requester.id === id)
+    ) {
       return this.findOne(id);
     }
     if (requester.role === Role.TEACHER) {
@@ -113,11 +123,15 @@ export class StudentService {
 
     const isValid = await bcrypt.compare(password, student.password);
 
-    if (isValid) {
-      return omit(student, ['password']);
+    if (!isValid) {
+      return null;
     }
 
-    return null;
+    if (!student.isActive) {
+      throw new UnauthorizedException('Account has been deactivated');
+    }
+
+    return omit(student, ['password']);
   }
 
   async update(
@@ -196,6 +210,8 @@ export class StudentService {
         continue;
       }
 
+      this.assertPasswordsMatch(student.password, student.confirmPassword);
+
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(student.password, salt);
 
@@ -219,6 +235,12 @@ export class StudentService {
     };
   }
 
+  private assertPasswordsMatch(password: string, confirmPassword?: string) {
+    if (confirmPassword !== undefined && confirmPassword !== password) {
+      throw new BadRequestException('Passwords do not match');
+    }
+  }
+
   private assertCanManage(
     id: string,
     requester: AuthenticatedUser | undefined,
@@ -226,7 +248,8 @@ export class StudentService {
   ) {
     if (!requester) return;
     if (requester.role === Role.ADMIN) return;
-    if (!deleting && requester.role === Role.STUDENT && requester.id === id) return;
+    if (!deleting && requester.role === Role.STUDENT && requester.id === id)
+      return;
     throw new ForbiddenException(
       deleting
         ? 'Only administrators can delete student accounts'
@@ -239,7 +262,9 @@ export class StudentService {
     ownStudentId?: string,
   ) {
     const prisma = this.prisma as unknown as {
-      teacher?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+      teacher?: {
+        findUnique: (args: unknown) => Promise<{ id: string } | null>;
+      };
       admin?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
     };
     const [teacher, admin] = await Promise.all([
@@ -250,11 +275,14 @@ export class StudentService {
       throw new ConflictException('An account with this email already exists.');
     }
     if (ownStudentId) {
-      const otherStudent = await (this.prisma.student.findFirst
-        ? this.prisma.student.findFirst({ where: { email, id: { not: ownStudentId } }, select: { id: true } })
-        : Promise.resolve(null));
+      const otherStudent = await this.prisma.student.findFirst({
+        where: { email, id: { not: ownStudentId } },
+        select: { id: true },
+      });
       if (otherStudent) {
-        throw new ConflictException('An account with this email already exists.');
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
       }
     }
   }

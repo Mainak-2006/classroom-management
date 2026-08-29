@@ -19,6 +19,24 @@ const courseInclude = {
   students: true,
 } as const;
 
+type PersonWithPassword = { password?: string };
+
+function sanitizePerson<T extends PersonWithPassword>(person: T): T {
+  if (typeof person.password === 'string') delete person.password;
+  return person;
+}
+
+function sanitizeCourse<T>(course: T): T {
+  if (!course || typeof course !== 'object') return course;
+  const record = course as PersonWithPassword & {
+    teacher?: PersonWithPassword | null;
+    students?: PersonWithPassword[];
+  };
+  if (record.teacher) sanitizePerson(record.teacher);
+  if (record.students) record.students.forEach(sanitizePerson);
+  return course;
+}
+
 @Injectable()
 export class CourseService {
   constructor(
@@ -71,7 +89,7 @@ export class CourseService {
 
     return {
       message: 'Course created successfully',
-      data: course,
+      data: sanitizeCourse(course),
     };
   }
 
@@ -82,13 +100,14 @@ export class CourseService {
 
     return {
       total: courses.length,
-      data: courses,
+      data: courses.map(sanitizeCourse),
     };
   }
 
   async findAllForRequester(requester: AuthenticatedUser) {
     if (requester.role === Role.ADMIN) return this.findAll();
-    if (requester.role === Role.TEACHER) return this.findByTeacher(requester.id);
+    if (requester.role === Role.TEACHER)
+      return this.findByTeacher(requester.id);
     return this.findByStudent(requester.id);
   }
 
@@ -102,7 +121,7 @@ export class CourseService {
       throw new NotFoundException('Course not found');
     }
 
-    return course;
+    return sanitizeCourse(course);
   }
 
   async findOneForRequester(id: string, requester: AuthenticatedUser) {
@@ -166,7 +185,7 @@ export class CourseService {
 
     return {
       message: 'Course updated successfully',
-      data: course,
+      data: sanitizeCourse(course),
     };
   }
 
@@ -225,7 +244,7 @@ export class CourseService {
 
     return {
       message: 'Teacher assigned to course successfully',
-      data: course,
+      data: sanitizeCourse(course),
     };
   }
 
@@ -253,7 +272,7 @@ export class CourseService {
 
     return {
       message: 'Teacher removed from course successfully',
-      data: course,
+      data: sanitizeCourse(course),
     };
   }
 
@@ -301,7 +320,7 @@ export class CourseService {
 
     return {
       message: 'Student added to course successfully',
-      data: updatedCourse,
+      data: sanitizeCourse(updatedCourse),
     };
   }
 
@@ -343,7 +362,7 @@ export class CourseService {
 
     return {
       message: 'Student removed from course successfully',
-      data: updatedCourse,
+      data: sanitizeCourse(updatedCourse),
     };
   }
 
@@ -363,7 +382,7 @@ export class CourseService {
       throw new NotFoundException('No teacher assigned to this course');
     }
 
-    return course.teacher;
+    return sanitizePerson(course.teacher);
   }
 
   // Get course students
@@ -383,7 +402,7 @@ export class CourseService {
 
     return {
       total: course.students.length,
-      data: course.students,
+      data: course.students.map(sanitizePerson),
     };
   }
 
@@ -398,7 +417,7 @@ export class CourseService {
 
     return {
       total: courses.length,
-      data: courses,
+      data: courses.map(sanitizeCourse),
     };
   }
 
@@ -413,7 +432,7 @@ export class CourseService {
 
     return {
       total: courses.length,
-      data: courses,
+      data: courses.map(sanitizeCourse),
     };
   }
 
@@ -438,10 +457,14 @@ export class CourseService {
     if (requester.role === Role.ADMIN) return;
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { teacherId: true, students: { where: { id: requester.id }, select: { id: true } } },
+      select: {
+        teacherId: true,
+        students: { where: { id: requester.id }, select: { id: true } },
+      },
     });
     if (!course) throw new NotFoundException('Course not found');
-    if (requester.role === Role.TEACHER && course.teacherId === requester.id) return;
+    if (requester.role === Role.TEACHER && course.teacherId === requester.id)
+      return;
     if (requester.role === Role.STUDENT && course.students.length > 0) return;
     throw new ForbiddenException('You do not have access to this course');
   }
@@ -471,7 +494,9 @@ export class CourseService {
   // Find courses by semester
   async findBySemester(semester: number, requester?: AuthenticatedUser) {
     if (requester && requester.role !== Role.ADMIN) {
-      throw new ForbiddenException('Only administrators can browse courses by semester');
+      throw new ForbiddenException(
+        'Only administrators can browse courses by semester',
+      );
     }
     const courses = await this.prisma.course.findMany({
       where: { semester },
@@ -480,14 +505,16 @@ export class CourseService {
 
     return {
       total: courses.length,
-      data: courses,
+      data: courses.map(sanitizeCourse),
     };
   }
 
   // Find courses by department
   async findByDepartment(department: string, requester?: AuthenticatedUser) {
     if (requester && requester.role !== Role.ADMIN) {
-      throw new ForbiddenException('Only administrators can browse courses by department');
+      throw new ForbiddenException(
+        'Only administrators can browse courses by department',
+      );
     }
     const courses = await this.prisma.course.findMany({
       where: {
@@ -498,7 +525,7 @@ export class CourseService {
 
     return {
       total: courses.length,
-      data: courses,
+      data: courses.map(sanitizeCourse),
     };
   }
 

@@ -172,6 +172,31 @@ describe('CourseService', () => {
       });
       expect(result).toEqual({ total: 1, data: [mockCourse] });
     });
+
+    it('should strip passwords from nested teacher and students', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        {
+          ...mockCourse,
+          teacher: {
+            id: 'teacher-1',
+            email: 'teacher@example.com',
+            password: 'hashed-secret',
+          },
+          students: [
+            {
+              id: 'student-1',
+              email: 'student@example.com',
+              password: 'hashed-secret',
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.findAll();
+
+      expect(result.data[0].teacher).not.toHaveProperty('password');
+      expect(result.data[0].students[0]).not.toHaveProperty('password');
+    });
   });
 
   describe('findOne', () => {
