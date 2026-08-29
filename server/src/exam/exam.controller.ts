@@ -33,8 +33,8 @@ export class ExamController {
   }
 
   @Get()
-  findAll() {
-    return this.examService.findAll();
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findAll(user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -55,20 +55,22 @@ export class ExamController {
 
   // Find exams by course
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string) {
-    return this.examService.findByCourse(courseId);
+  findByCourse(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findByCourse(courseId, user);
   }
 
   // Find exams by status
   @Get('status/:status')
-  findByStatus(@Param('status') status: ExamStatus) {
-    return this.examService.findByStatus(status);
+  @Roles(Role.ADMIN)
+  findByStatus(@Param('status') status: ExamStatus, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findByStatus(status, user);
   }
 
   // Find submissions by student
   @Get('submissions/student/:studentId')
-  findSubmissionsByStudent(@Param('studentId') studentId: string) {
-    return this.examService.findByStudent(studentId);
+  @Roles(Role.ADMIN, Role.STUDENT)
+  findSubmissionsByStudent(@Param('studentId') studentId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findByStudent(studentId, user);
   }
 
   // Submit an exam score on behalf of a student
@@ -84,8 +86,9 @@ export class ExamController {
 
   // Find submissions for an exam
   @Get(':id/submissions')
-  findSubmissions(@Param('id') id: string) {
-    return this.examService.findByExam(id);
+  @Roles(Role.ADMIN, Role.TEACHER)
+  findSubmissions(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findByExam(id, user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -104,7 +107,7 @@ export class ExamController {
 
   // Get a single exam by id (must be last to avoid shadowing other routes)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.examService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.examService.findOne(id, user);
   }
 }

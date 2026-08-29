@@ -52,6 +52,7 @@ model Admin {
   password    String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  @@index([email])
 }
 
 model Teacher {
@@ -75,6 +76,7 @@ model Teacher {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   courses        Course[]
+  @@index([email])
 }
 
 model Student {
@@ -102,6 +104,8 @@ model Student {
   courses            Course[]
   attendance         Attendance[]
   examSubmissions    ExamSubmission[]
+  assignmentSubmissions AssignmentSubmission[]
+  @@index([email])
 }
 
 model Course {
@@ -121,6 +125,8 @@ model Course {
   attendance  Attendance[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  @@index([teacherId])
+  @@index([department, semester])
 }
 
 model Attendance {
@@ -136,6 +142,8 @@ model Attendance {
   updatedAt DateTime         @updatedAt
 
   @@unique([studentId, courseId, date])
+  @@index([courseId, date])
+  @@index([studentId, date])
 }
 
 model Assignment {
@@ -149,8 +157,29 @@ model Assignment {
   status       AssignmentStatus @default(DRAFT)
   isActive     Boolean          @default(true)
   course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions  AssignmentSubmission[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+  @@index([courseId, status, dueDate])
+}
+
+model AssignmentSubmission {
+  id          String     @id @default(cuid())
+  assignmentId String
+  studentId   String
+  response    String
+  submittedAt DateTime   @default(now())
+  feedback    String?
+  score       Int?
+  gradedAt    DateTime?
+  assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student     Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId, submittedAt])
+  @@index([assignmentId, submittedAt])
 }
 
 model Exam {
@@ -179,4 +208,26 @@ model ExamSubmission {
   createdAt   DateTime @default(now())
   exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  @@unique([examId, studentId])
+  @@index([studentId, submittedAt])
+}
+
+model AuthSession {
+  id        String   @id
+  userId    String
+  role      String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model RevokedAccessToken {
+  id        String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

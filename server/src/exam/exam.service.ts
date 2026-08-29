@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { UpdateExamSubmissionDto } from './dto/update-exam-submission.dto';
 import { CourseService } from '../course/course.service';
 import { StudentService } from '../student/student.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { Role } from '../auth/enums/role.enum';
 
 @Injectable()
 export class ExamService {
@@ -49,7 +51,12 @@ export class ExamService {
     };
   }
 
-  async findAll() {
+  async findAll(requester?: AuthenticatedUser) {
+    if (requester?.role === Role.STUDENT) return this.findByStudent(requester.id, requester);
+    if (requester?.role === Role.TEACHER) {
+      const data = await this.prisma.exam.findMany({ where: { course: { teacherId: requester.id } } });
+      return { total: data.length, data };
+    }
     const exams = await this.prisma.exam.findMany();
 
     return {
@@ -58,11 +65,17 @@ export class ExamService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requester?: AuthenticatedUser) {
     const exam = await this.prisma.exam.findUnique({ where: { id } });
 
     if (!exam) {
       throw new NotFoundException('Exam not found');
+    }
+    if (requester) {
+      await this.courseService.assertCanViewCourse(requester, exam.courseId);
+      if (requester.role === Role.STUDENT && (exam.status !== ExamStatus.PUBLISHED || !exam.isActive)) {
+        throw new NotFoundException('Exam not found');
+      }
     }
 
     return exam;
@@ -135,10 +148,13 @@ export class ExamService {
   }
 
   // Find exams by course
-  async findByCourse(courseId: string) {
-    await this.courseService.findOne(courseId);
+  async findByCourse(courseId: string, requester?: AuthenticatedUser) {
+    if (requester) await this.courseService.assertCanViewCourse(requester, courseId);
+    else await this.courseService.findOne(courseId);
 
-    const exams = await this.prisma.exam.findMany({ where: { courseId } });
+    const exams = await this.prisma.exam.findMany({
+      where: requester?.role === Role.STUDENT ? { courseId, status: ExamStatus.PUBLISHED, isActive: true } : { courseId },
+    });
 
     return {
       total: exams.length,
@@ -147,7 +163,8 @@ export class ExamService {
   }
 
   // Find exams by status
-  async findByStatus(status: ExamStatus) {
+  async findByStatus(status: ExamStatus, requester?: AuthenticatedUser) {
+    if (requester && requester.role !== Role.ADMIN) throw new ForbiddenException('Only administrators can search exams by status');
     const exams = await this.prisma.exam.findMany({ where: { status } });
 
     return {
@@ -164,6 +181,16 @@ export class ExamService {
     const exam = await this.findOne(examId);
     await this.courseService.assertTeacherOwnsCourse(requester, exam.courseId);
     await this.studentService.findOne(createExamSubmissionDto.studentId);
+    if (this.courseService.assertStudentEnrolled) {
+      await this.courseService.assertStudentEnrolled(exam.courseId, createExamSubmissionDto.studentId);
+    }
+    if (createExamSubmissionDto.score > exam.totalMarks) {
+      throw new ConflictException(`Score cannot exceed ${exam.totalMarks}`);
+    }
+    const duplicate = this.prisma.examSubmission.findFirst
+      ? await this.prisma.examSubmission.findFirst({ where: { examId, studentId: createExamSubmissionDto.studentId }, select: { id: true } })
+      : null;
+    if (duplicate) throw new ConflictException('An exam submission already exists for this student');
 
     const submission = await this.prisma.examSubmission.create({
       data: {
@@ -203,6 +230,13 @@ export class ExamService {
 
     if (updateExamSubmissionDto.studentId) {
       await this.studentService.findOne(updateExamSubmissionDto.studentId);
+      if (this.courseService.assertStudentEnrolled) {
+        await this.courseService.assertStudentEnrolled(existing.exam.courseId, updateExamSubmissionDto.studentId);
+      }
+    }
+
+    if (updateExamSubmissionDto.score !== undefined && updateExamSubmissionDto.score > existing.exam.totalMarks) {
+      throw new ConflictException(`Score cannot exceed ${existing.exam.totalMarks}`);
     }
 
     const { submittedAt, ...rest } = updateExamSubmissionDto;
@@ -226,8 +260,9 @@ export class ExamService {
     };
   }
 
-  async findByExam(examId: string) {
-    await this.findOne(examId);
+  async findByExam(examId: string, requester?: AuthenticatedUser) {
+    const exam = await this.findOne(examId);
+    if (requester) await this.courseService.assertTeacherOwnsCourse(requester, exam.courseId);
 
     const submissions = await this.prisma.examSubmission.findMany({
       where: { examId },
@@ -239,11 +274,16 @@ export class ExamService {
     };
   }
 
-  async findByStudent(studentId: string) {
+  async findByStudent(studentId: string, requester?: AuthenticatedUser) {
+    if (requester && requester.role === Role.STUDENT && requester.id !== studentId) {
+      throw new ForbiddenException('You can only view your own exam results');
+    }
     await this.studentService.findOne(studentId);
 
     const submissions = await this.prisma.examSubmission.findMany({
-      where: { studentId },
+      where: requester?.role === Role.STUDENT
+        ? { studentId, exam: { status: { in: [ExamStatus.PUBLISHED, ExamStatus.CLOSED] }, isActive: true } }
+        : { studentId },
       include: { exam: { include: { course: true } } },
     });
 

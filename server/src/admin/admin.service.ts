@@ -50,6 +50,8 @@ export class AdminService {
       throw new ConflictException('Admin with this email already exists.');
     }
 
+    await this.assertEmailAvailableAcrossAccounts(createAdminDto.email);
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createAdminDto.password, salt);
 
@@ -96,6 +98,10 @@ export class AdminService {
 
     if (!exists) {
       throw new NotFoundException('Admin not found');
+    }
+
+    if (updateAdminDto.email) {
+      await this.assertEmailAvailableAcrossAccounts(updateAdminDto.email, id);
     }
 
     const { confirmPassword, password, ...rest } = updateAdminDto;
@@ -173,5 +179,23 @@ export class AdminService {
       total: createdAdmins.length,
       data: createdAdmins.map((admin) => omit(admin, ['password'])),
     };
+  }
+
+  private async assertEmailAvailableAcrossAccounts(email: string, ownAdminId?: string) {
+    const prisma = this.prisma as unknown as {
+      student?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+      teacher?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+    };
+    const [student, teacher] = await Promise.all([
+      prisma.student?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+      prisma.teacher?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+    ]);
+    if (student || teacher) throw new ConflictException('An account with this email already exists.');
+    if (ownAdminId) {
+      const otherAdmin = await (this.prisma.admin.findFirst
+        ? this.prisma.admin.findFirst({ where: { email, id: { not: ownAdminId } }, select: { id: true } })
+        : Promise.resolve(null));
+      if (otherAdmin) throw new ConflictException('An account with this email already exists.');
+    }
   }
 }

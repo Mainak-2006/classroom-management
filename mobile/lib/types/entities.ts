@@ -85,6 +85,18 @@ export interface Assignment extends Timestamps {
   isActive: boolean;
 }
 
+export interface AssignmentSubmission extends Timestamps {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  response: string;
+  submittedAt: string;
+  feedback?: string | null;
+  score?: number | null;
+  gradedAt?: string | null;
+  student?: Pick<Student, "id" | "firstName" | "lastName" | "rollNumber">;
+}
+
 export interface Exam extends Timestamps {
   id: string;
   title: string;

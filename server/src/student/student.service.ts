@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -9,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import type { Student } from '@prisma/client';
+import { Role } from '../auth/enums/role.enum';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 type SafeStudent = Omit<Student, 'password'>;
 
@@ -43,6 +46,8 @@ export class StudentService {
         'Student with this email or roll number already exists.',
       );
     }
+
+    await this.assertEmailAvailableAcrossAccounts(createStudentDto.email);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(createStudentDto.password, salt);
@@ -82,6 +87,20 @@ export class StudentService {
     return omit(student, ['password']);
   }
 
+  async findOneForRequester(id: string, requester: AuthenticatedUser) {
+    if (requester.role === Role.ADMIN || (requester.role === Role.STUDENT && requester.id === id)) {
+      return this.findOne(id);
+    }
+    if (requester.role === Role.TEACHER) {
+      const enrolledInOwnCourse = await this.prisma.course.findFirst({
+        where: { teacherId: requester.id, students: { some: { id } } },
+        select: { id: true },
+      });
+      if (enrolledInOwnCourse) return this.findOne(id);
+    }
+    throw new ForbiddenException('You are not allowed to view this student');
+  }
+
   async validateStudent(
     email: string,
     password: string,
@@ -101,7 +120,12 @@ export class StudentService {
     return null;
   }
 
-  async update(id: string, updateStudentDto: UpdateStudentDto) {
+  async update(
+    id: string,
+    updateStudentDto: UpdateStudentDto,
+    requester?: AuthenticatedUser,
+  ) {
+    this.assertCanManage(id, requester, false);
     const exists = await this.prisma.student.findUnique({
       where: { id },
       select: { id: true },
@@ -109,6 +133,10 @@ export class StudentService {
 
     if (!exists) {
       throw new NotFoundException('Student not found');
+    }
+
+    if (updateStudentDto.email) {
+      await this.assertEmailAvailableAcrossAccounts(updateStudentDto.email, id);
     }
 
     const { confirmPassword, password, ...rest } = updateStudentDto;
@@ -134,7 +162,8 @@ export class StudentService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester?: AuthenticatedUser) {
+    this.assertCanManage(id, requester, true);
     const exists = await this.prisma.student.findUnique({
       where: { id },
       select: { id: true },
@@ -188,5 +217,45 @@ export class StudentService {
       total: createdStudents.length,
       data: createdStudents.map((student) => omit(student, ['password'])),
     };
+  }
+
+  private assertCanManage(
+    id: string,
+    requester: AuthenticatedUser | undefined,
+    deleting: boolean,
+  ) {
+    if (!requester) return;
+    if (requester.role === Role.ADMIN) return;
+    if (!deleting && requester.role === Role.STUDENT && requester.id === id) return;
+    throw new ForbiddenException(
+      deleting
+        ? 'Only administrators can delete student accounts'
+        : 'You can only update your own student profile',
+    );
+  }
+
+  private async assertEmailAvailableAcrossAccounts(
+    email: string,
+    ownStudentId?: string,
+  ) {
+    const prisma = this.prisma as unknown as {
+      teacher?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+      admin?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
+    };
+    const [teacher, admin] = await Promise.all([
+      prisma.teacher?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+      prisma.admin?.findUnique({ where: { email } }) ?? Promise.resolve(null),
+    ]);
+    if (teacher || admin) {
+      throw new ConflictException('An account with this email already exists.');
+    }
+    if (ownStudentId) {
+      const otherStudent = await (this.prisma.student.findFirst
+        ? this.prisma.student.findFirst({ where: { email, id: { not: ownStudentId } }, select: { id: true } })
+        : Promise.resolve(null));
+      if (otherStudent) {
+        throw new ConflictException('An account with this email already exists.');
+      }
+    }
   }
 }

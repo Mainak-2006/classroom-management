@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import Button from "../../components/Button";
+import AssignmentSubmissionSheet from "../../components/AssignmentSubmissionSheet";
 import Screen from "../../components/Screen";
 import { colors } from "../../constants/theme";
 import { getApiErrorMessage } from "../../lib/api/client";
@@ -52,6 +53,7 @@ export default function StudentAssignmentsScreen() {
 
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<AssignmentStatus | "ALL">("ALL");
+  const [submittingAssignment, setSubmittingAssignment] = useState<Assignment | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -271,6 +273,13 @@ export default function StudentAssignmentsScreen() {
                           </Text>
                         </View>
                       </View>
+                      {assignment.status === AssignmentStatus.PUBLISHED && !dueInfo.isOverdue ? (
+                        <View className="mt-4 border-t border-slate-100 pt-3">
+                          <Pressable onPress={() => setSubmittingAssignment(assignment)} className="self-start rounded-lg bg-sky-600 px-3 py-1.5">
+                            <Text className="text-xs font-semibold text-white">Submit work</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -279,6 +288,12 @@ export default function StudentAssignmentsScreen() {
           </View>
         )}
       </ScrollView>
+      <AssignmentSubmissionSheet
+        assignment={submittingAssignment}
+        visible={Boolean(submittingAssignment)}
+        onClose={() => setSubmittingAssignment(null)}
+        onSaved={loadData}
+      />
     </Screen>
   );
 }

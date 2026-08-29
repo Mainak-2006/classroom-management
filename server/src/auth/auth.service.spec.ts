@@ -293,11 +293,11 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    it('should rotate the refresh token and issue a new pair', () => {
+    it('should rotate the refresh token and issue a new pair', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
       (tokenStore.isValid as jest.Mock).mockReturnValue(true);
 
-      const result = service.refresh('old-refresh-token');
+      const result = await service.refresh('old-refresh-token');
 
       expect(tokenStore.revoke).toHaveBeenCalledWith('refresh-jti-1');
       expect(tokenStore.save).toHaveBeenCalledWith(
@@ -309,30 +309,30 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('refreshToken');
     });
 
-    it('should throw when the refresh token is invalid', () => {
+    it('should throw when the refresh token is invalid', async () => {
       (jwtService.verify as jest.Mock).mockImplementation(() => {
         throw new Error('bad token');
       });
 
-      expect(() => service.refresh('bad-token')).toThrow(UnauthorizedException);
+      await expect(service.refresh('bad-token')).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw when the token is not a refresh token', () => {
+    it('should throw when the token is not a refresh token', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue({
         ...mockDecoded,
         type: 'access',
       });
 
-      expect(() => service.refresh('access-token')).toThrow(
+      await expect(service.refresh('access-token')).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it('should throw when the refresh token has been revoked', () => {
+    it('should throw when the refresh token has been revoked', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
       (tokenStore.isValid as jest.Mock).mockReturnValue(false);
 
-      expect(() => service.refresh('revoked-refresh-token')).toThrow(
+      await expect(service.refresh('revoked-refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
       expect(tokenStore.revoke).not.toHaveBeenCalled();
@@ -340,19 +340,19 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('should revoke the refresh token when provided', () => {
+    it('should revoke the refresh token when provided', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
 
-      const result = service.logout('refresh-token');
+      const result = await service.logout('refresh-token');
 
       expect(tokenStore.revoke).toHaveBeenCalledWith('refresh-jti-1');
       expect(result).toEqual({ message: 'Logout successful.' });
     });
 
-    it('should blacklist the access token when provided', () => {
+    it('should blacklist the access token when provided', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
 
-      service.logout(undefined, 'access-token');
+      await service.logout(undefined, 'access-token');
 
       expect(tokenStore.blacklistAccessToken).toHaveBeenCalledWith(
         'refresh-jti-1',
@@ -360,12 +360,12 @@ describe('AuthService', () => {
       );
     });
 
-    it('should ignore invalid tokens during logout', () => {
+    it('should ignore invalid tokens during logout', async () => {
       (jwtService.verify as jest.Mock).mockImplementation(() => {
         throw new Error('bad token');
       });
 
-      const result = service.logout('bad-token', 'bad-access-token');
+      const result = await service.logout('bad-token', 'bad-access-token');
 
       expect(tokenStore.revoke).not.toHaveBeenCalled();
       expect(tokenStore.blacklistAccessToken).not.toHaveBeenCalled();

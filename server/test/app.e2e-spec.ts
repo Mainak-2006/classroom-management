@@ -14,7 +14,12 @@ describe('AppController (e2e)', () => {
       imports: [AppModule],
     })
       .overrideProvider(PrismaService)
-      .useValue({})
+      .useValue({
+        assignment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        exam: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        authSession: { findUnique: jest.fn().mockResolvedValue(null) },
+        revokedAccessToken: { findUnique: jest.fn().mockResolvedValue(null) },
+      })
       .overrideProvider(SeedService)
       .useValue({ onModuleInit: jest.fn() })
       .compile();

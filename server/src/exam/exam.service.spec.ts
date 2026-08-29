@@ -50,6 +50,7 @@ describe('ExamService', () => {
     exam: {
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
@@ -64,6 +65,7 @@ describe('ExamService', () => {
   let courseService: {
     findOne: jest.Mock;
     assertTeacherOwnsCourse: jest.Mock;
+    assertStudentEnrolled: jest.Mock;
   };
   let studentService: { findOne: jest.Mock };
 
@@ -80,6 +82,7 @@ describe('ExamService', () => {
       exam: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -95,6 +98,7 @@ describe('ExamService', () => {
     courseService = {
       findOne: jest.fn().mockResolvedValue({ id: 'course-1' }),
       assertTeacherOwnsCourse: jest.fn().mockResolvedValue(undefined),
+      assertStudentEnrolled: jest.fn().mockResolvedValue(undefined),
     };
     studentService = {
       findOne: jest.fn().mockResolvedValue({ id: 'student-1' }),

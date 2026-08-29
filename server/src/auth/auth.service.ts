@@ -73,7 +73,7 @@ export class AuthService {
     return this.issueTokens({ id, email }, dto.role);
   }
 
-  refresh(refreshToken: string) {
+  async refresh(refreshToken: string) {
     let payload: JwtPayload;
 
     try {
@@ -89,12 +89,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    if (!this.tokenStore.isValid(payload.jti)) {
+    if (!(await this.tokenStore.isValid(payload.jti))) {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
     // Rotate: revoke the old refresh token before issuing a new pair.
-    this.tokenStore.revoke(payload.jti);
+    await this.tokenStore.revoke(payload.jti);
 
     return this.issueTokens(
       { id: payload.id, email: payload.email },
@@ -102,13 +102,13 @@ export class AuthService {
     );
   }
 
-  logout(refreshToken?: string, accessToken?: string) {
+  async logout(refreshToken?: string, accessToken?: string) {
     if (refreshToken) {
-      this.revokeRefreshToken(refreshToken);
+      await this.revokeRefreshToken(refreshToken);
     }
 
     if (accessToken) {
-      this.blacklistAccessToken(accessToken);
+      await this.blacklistAccessToken(accessToken);
     }
 
     return {
@@ -116,7 +116,7 @@ export class AuthService {
     };
   }
 
-  private issueTokens(user: AuthUser, role: UserRole) {
+  private async issueTokens(user: AuthUser, role: UserRole) {
     const accessJti = randomUUID();
 
     const accessToken = this.jwtService.sign(
@@ -152,7 +152,7 @@ export class AuthService {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
     });
 
-    this.tokenStore.save(
+    await this.tokenStore.save(
       refreshJti,
       { userId: user.id, role },
       refreshPayload.exp! * 1000,
@@ -169,25 +169,25 @@ export class AuthService {
     };
   }
 
-  private revokeRefreshToken(refreshToken: string) {
+  private async revokeRefreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
         issuer: JWT_CONSTANTS.ISSUER,
       });
-      this.tokenStore.revoke(payload.jti);
+      await this.tokenStore.revoke(payload.jti);
     } catch {
       // Ignore invalid tokens; nothing to revoke.
     }
   }
 
-  private blacklistAccessToken(accessToken: string) {
+  private async blacklistAccessToken(accessToken: string) {
     try {
       const payload = this.jwtService.verify<JwtPayload>(accessToken, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
         issuer: JWT_CONSTANTS.ISSUER,
       });
-      this.tokenStore.blacklistAccessToken(payload.jti, payload.exp! * 1000);
+      await this.tokenStore.blacklistAccessToken(payload.jti, payload.exp! * 1000);
     } catch {
       // Ignore invalid tokens; nothing to blacklist.
     }

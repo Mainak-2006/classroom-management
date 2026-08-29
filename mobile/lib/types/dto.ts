@@ -175,6 +175,15 @@ export interface UpdateAssignmentDto {
   isActive?: boolean;
 }
 
+export interface CreateAssignmentSubmissionDto {
+  response: string;
+}
+
+export interface GradeAssignmentSubmissionDto {
+  score?: number;
+  feedback?: string;
+}
+
 export interface CreateAttendanceDto {
   studentId: string;
   courseId: string;

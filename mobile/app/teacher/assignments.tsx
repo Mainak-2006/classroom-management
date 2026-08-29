@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import AssignmentFormSheet from "../../components/AssignmentFormSheet";
+import AssignmentGradingSheet from "../../components/AssignmentGradingSheet";
 import Button from "../../components/Button";
 import Screen from "../../components/Screen";
 import { colors } from "../../constants/theme";
@@ -60,6 +61,7 @@ export default function TeacherAssignmentsScreen() {
   // Sheet modals
   const [formSheetVisible, setFormSheetVisible] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [gradingAssignment, setGradingAssignment] = useState<Assignment | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -342,6 +344,13 @@ export default function TeacherAssignmentsScreen() {
                         <View className="mt-4 flex-row justify-end border-t border-slate-100 pt-3">
                           <View className="flex-row items-center gap-2">
                             <Pressable
+                              onPress={() => setGradingAssignment(assignment)}
+                              className="flex-row items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1"
+                            >
+                              <Ionicons name="checkmark-done-outline" size={12} color={colors.primary} />
+                              <Text className="text-xs font-medium text-sky-700">Grade</Text>
+                            </Pressable>
+                            <Pressable
                               onPress={() => handleOpenEdit(assignment)}
                               className="flex-row items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1"
                             >
@@ -379,6 +388,11 @@ export default function TeacherAssignmentsScreen() {
           setFormSheetVisible(false);
           await loadData();
         }}
+      />
+      <AssignmentGradingSheet
+        assignment={gradingAssignment}
+        visible={Boolean(gradingAssignment)}
+        onClose={() => setGradingAssignment(null)}
       />
     </Screen>
   );

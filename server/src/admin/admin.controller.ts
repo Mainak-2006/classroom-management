@@ -31,6 +31,7 @@ export class AdminController {
     return this.adminService.createBulk(admins);
   }
 
+  @Roles(Role.ADMIN)
   @Get('profile')
   profile(@CurrentUser() user: AuthenticatedUser) {
     return this.adminService.findOne(user.id);
