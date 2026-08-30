@@ -56,7 +56,10 @@ export class RefreshTokenStore {
     });
   }
 
-  async blacklistAccessToken(tokenId: string, expiresAt: number): Promise<void> {
+  async blacklistAccessToken(
+    tokenId: string,
+    expiresAt: number,
+  ): Promise<void> {
     await this.prisma.revokedAccessToken.upsert({
       where: { id: this.hash(tokenId) },
       create: { id: this.hash(tokenId), expiresAt: new Date(expiresAt) },

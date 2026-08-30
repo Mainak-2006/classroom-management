@@ -12,7 +12,9 @@ export const attendanceService = {
     client.post<MessageResponse<Attendance>>("/attendance", data).then((res) => res.data),
 
   createBulk: (data: CreateAttendanceDto[]) =>
-    client.post<MessageResponse<Attendance[]>>("/attendance/bulk", data).then((res) => res.data),
+    client
+      .post<MessageResponse<Attendance[]>>("/attendance/bulk", { items: data })
+      .then((res) => res.data),
 
   list: () =>
     client.get<PaginatedResponse<Attendance>>("/attendance").then((res) => res.data),

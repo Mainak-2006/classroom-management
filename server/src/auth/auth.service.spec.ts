@@ -314,7 +314,9 @@ describe('AuthService', () => {
         throw new Error('bad token');
       });
 
-      await expect(service.refresh('bad-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('bad-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw when the token is not a refresh token', async () => {
