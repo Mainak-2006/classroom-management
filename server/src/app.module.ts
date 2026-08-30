@@ -18,7 +18,8 @@ import { LifecycleModule } from './lifecycle/lifecycle.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.NODE_ENV === 'production' ? '.env' : '.env.test',
+      envFilePath:
+        process.env.NODE_ENV === 'production' ? '.env.production' : '.env.test',
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
