@@ -84,7 +84,7 @@ export default function StudentHomeScreen() {
     let totalCount = 0;
     for (const record of attendance) {
       totalCount += 1;
-      if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE) {
+      if (record.status === AttendanceStatus.PRESENT) {
         presentCount += 1;
       }
     }
@@ -146,7 +146,9 @@ export default function StudentHomeScreen() {
       .slice(0, 5);
   }, [assignments, examSubmissions, courses]);
 
-  const firstName = (user as { firstName?: string } | null)?.firstName ?? "Student";
+  const firstName =
+    (user as { firstName?: string } | null)?.firstName ??
+    (user?.email ? user.email.split("@")[0] : "Student");
 
   const renderStatCard = (
     label: string,

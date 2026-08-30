@@ -42,7 +42,7 @@ function StudentAddSheet({ visible, course, onClose, onChanged }: StudentAddShee
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await studentService.list();
+      const { data } = await studentService.listEnrollable();
       setStudents(data);
       setError(null);
     } catch (fetchError) {

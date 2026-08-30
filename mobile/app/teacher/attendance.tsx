@@ -18,7 +18,9 @@ import { teacherService } from "../../lib/api/teacher";
 import type { Attendance, Course, CreateAttendanceDto, Student } from "../../lib/types";
 import { AttendanceStatus } from "../../lib/types";
 
-const TODAY = new Date().toISOString().slice(0, 10);
+function getToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const STATUS_OPTIONS: { status: AttendanceStatus; label: string; selectedColor: string }[] = [
   { status: AttendanceStatus.PRESENT, label: "Present", selectedColor: "#10B981" },
@@ -112,7 +114,7 @@ export default function TeacherAttendanceScreen() {
     if (!selectedCourseId) return;
 
     try {
-      const existing = await attendanceService.byCourseAndDate(selectedCourseId, TODAY);
+      const existing = await attendanceService.byCourseAndDate(selectedCourseId, getToday());
       const course = courses.find((c) => c.id === selectedCourseId);
       const roster = course?.students ?? [];
 
@@ -187,7 +189,7 @@ export default function TeacherAttendanceScreen() {
     for (const [studentId, status] of Object.entries(statuses)) {
       const existing = existingByStudent.get(studentId);
       if (!existing) {
-        toCreate.push({ studentId, courseId: selectedCourseId, date: TODAY, status });
+        toCreate.push({ studentId, courseId: selectedCourseId, date: getToday(), status });
       } else if (existing.status !== status) {
         toUpdate.push({ id: existing.id, status });
       }

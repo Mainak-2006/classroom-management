@@ -24,7 +24,6 @@ import { AssignmentStatus } from "../../lib/types";
 const STATUS_FILTERS: { value: AssignmentStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: AssignmentStatus.PUBLISHED, label: "Published" },
-  { value: AssignmentStatus.DRAFT, label: "Draft" },
   { value: AssignmentStatus.CLOSED, label: "Closed" },
 ];
 

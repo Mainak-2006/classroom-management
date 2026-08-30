@@ -24,7 +24,6 @@ import { ExamStatus } from "../../lib/types";
 const STATUS_FILTERS: { value: ExamStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: ExamStatus.PUBLISHED, label: "Published" },
-  { value: ExamStatus.DRAFT, label: "Draft" },
   { value: ExamStatus.CLOSED, label: "Closed" },
 ];
 

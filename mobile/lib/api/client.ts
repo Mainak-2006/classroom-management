@@ -1,9 +1,23 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
+import Constants from "expo-constants";
 import type { AuthResponse } from "../types";
 
 const DEFAULT_PORT = 3000;
 
-export const baseURL = process.env.EXPO_PUBLIC_API_URL || `http://localhost:${DEFAULT_PORT}`;
+function resolveBaseURL(): string {
+  const explicit = process.env.EXPO_PUBLIC_API_URL;
+  if (explicit) return explicit;
+
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(":")[0];
+    if (host) return `http://${host}:${DEFAULT_PORT}`;
+  }
+
+  return `http://localhost:${DEFAULT_PORT}`;
+}
+
+export const baseURL = resolveBaseURL();
 
 export interface ApiRequestConfig extends AxiosRequestConfig {
   _retry?: boolean;

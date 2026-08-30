@@ -40,6 +40,11 @@ export const studentService = {
   list: () =>
     client.get<PaginatedResponse<Student>>("/student").then((res) => res.data),
 
+  listEnrollable: (limit = 100) =>
+    client
+      .get<PaginatedResponse<Student>>(`/student/enrollable?limit=${limit}`)
+      .then((res) => res.data),
+
   get: (id: string) =>
     client.get<Student>(`/student/${id}`).then((res) => res.data),
 

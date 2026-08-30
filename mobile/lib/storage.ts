@@ -12,14 +12,14 @@ const isWeb = Platform.OS === "web";
 
 export async function getItem(key: string): Promise<string | null> {
   if (isWeb) {
-    return globalThis.localStorage?.getItem(key) ?? null;
+    return globalThis.sessionStorage?.getItem(key) ?? null;
   }
   return SecureStore.getItemAsync(key);
 }
 
 export async function setItem(key: string, value: string): Promise<void> {
   if (isWeb) {
-    globalThis.localStorage?.setItem(key, value);
+    globalThis.sessionStorage?.setItem(key, value);
     return;
   }
   await SecureStore.setItemAsync(key, value);
@@ -27,7 +27,7 @@ export async function setItem(key: string, value: string): Promise<void> {
 
 export async function deleteItem(key: string): Promise<void> {
   if (isWeb) {
-    globalThis.localStorage?.removeItem(key);
+    globalThis.sessionStorage?.removeItem(key);
     return;
   }
   await SecureStore.deleteItemAsync(key);

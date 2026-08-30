@@ -98,7 +98,11 @@ export default function ExamGradingSheet({
       return;
     }
     const numericScore = Number(rawVal);
-    if (Number.isNaN(numericScore) || numericScore < 0 || numericScore > exam.totalMarks) {
+    if (!Number.isInteger(numericScore)) {
+      setFeedback({ kind: "error", text: "Score must be a whole number." });
+      return;
+    }
+    if (numericScore < 0 || numericScore > exam.totalMarks) {
       setFeedback({
         kind: "error",
         text: `Score must be between 0 and ${exam.totalMarks}.`,
@@ -136,7 +140,8 @@ export default function ExamGradingSheet({
         const rawVal = scores[student.id]?.trim();
         if (!rawVal) continue;
         const numericScore = Number(rawVal);
-        if (Number.isNaN(numericScore) || numericScore < 0 || numericScore > exam.totalMarks) {
+        if (!Number.isInteger(numericScore)) continue;
+        if (numericScore < 0 || numericScore > exam.totalMarks) {
           continue;
         }
 
@@ -244,7 +249,7 @@ export default function ExamGradingSheet({
                         <TextInput
                           value={scoreVal}
                           onChangeText={(val) => handleScoreChange(student.id, val)}
-                          keyboardType="decimal-pad"
+                          keyboardType="number-pad"
                           placeholder="0"
                           placeholderTextColor={colors.textMuted}
                           className="w-12 text-center text-sm font-bold text-slate-900"
