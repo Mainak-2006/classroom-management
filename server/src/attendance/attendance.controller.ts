@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 
 import { AttendanceService } from './attendance.service';
+import { CreateBulkAttendanceDto } from './dto/create-bulk-attendance.dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,14 +23,23 @@ export class AttendanceController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post()
-  create(@Body() createAttendanceDto: CreateAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+  create(
+    @Body() createAttendanceDto: CreateAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.create(createAttendanceDto, user);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post('bulk')
-  createBulk(@Body() records: CreateAttendanceDto[], @CurrentUser() user: AuthenticatedUser) {
-    return this.attendanceService.createBulk(records, user);
+  createBulk(
+    @Body() createBulkAttendanceDto: CreateBulkAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.createBulk(
+      createBulkAttendanceDto.items,
+      user,
+    );
   }
 
   @Roles(Role.ADMIN)
@@ -57,21 +67,30 @@ export class AttendanceController {
   // Find attendance records by course
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.findByCourse(courseId, user);
   }
 
   // Find attendance records by student
   @Roles(Role.ADMIN, Role.STUDENT)
   @Get('student/:studentId')
-  findByStudent(@Param('studentId') studentId: string, @CurrentUser() user: AuthenticatedUser) {
+  findByStudent(
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.findByStudent(studentId, user);
   }
 
   // Find attendance records by date
   @Roles(Role.ADMIN)
   @Get('date/:date')
-  findByDate(@Param('date') date: string, @CurrentUser() user: AuthenticatedUser) {
+  findByDate(
+    @Param('date') date: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.findByDate(date, user);
   }
 
@@ -79,7 +98,8 @@ export class AttendanceController {
   @Get('course/:courseId/date/:date')
   findByCourseAndDate(
     @Param('courseId') courseId: string,
-    @Param('date') date: string, @CurrentUser() user: AuthenticatedUser,
+    @Param('date') date: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.attendanceService.findByCourseAndDate(courseId, date, user);
   }

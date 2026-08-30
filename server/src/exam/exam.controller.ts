@@ -55,21 +55,30 @@ export class ExamController {
 
   // Find exams by course
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.examService.findByCourse(courseId, user);
   }
 
   // Find exams by status
   @Get('status/:status')
   @Roles(Role.ADMIN)
-  findByStatus(@Param('status') status: ExamStatus, @CurrentUser() user: AuthenticatedUser) {
+  findByStatus(
+    @Param('status') status: ExamStatus,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.examService.findByStatus(status, user);
   }
 
   // Find submissions by student
   @Get('submissions/student/:studentId')
   @Roles(Role.ADMIN, Role.STUDENT)
-  findSubmissionsByStudent(@Param('studentId') studentId: string, @CurrentUser() user: AuthenticatedUser) {
+  findSubmissionsByStudent(
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.examService.findByStudent(studentId, user);
   }
 
@@ -87,7 +96,10 @@ export class ExamController {
   // Find submissions for an exam
   @Get(':id/submissions')
   @Roles(Role.ADMIN, Role.TEACHER)
-  findSubmissions(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  findSubmissions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.examService.findByExam(id, user);
   }
 

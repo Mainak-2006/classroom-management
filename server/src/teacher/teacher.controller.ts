@@ -56,14 +56,20 @@ export class TeacherController {
   // Mark attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post('attendance')
-  markAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+  markAttendance(
+    @Body() createAttendanceDto: CreateAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.create(createAttendanceDto, user);
   }
 
   // View attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get('attendance/course/:courseId')
-  courseAttendance(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+  courseAttendance(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.findByCourse(courseId, user);
   }
 
@@ -81,7 +87,11 @@ export class TeacherController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTeacherDto: UpdateTeacherDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() updateTeacherDto: UpdateTeacherDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.teacherService.update(id, updateTeacherDto, user);
   }
 

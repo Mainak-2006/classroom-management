@@ -75,7 +75,7 @@ export class StudentController {
     return this.assignmentService.findByStudent(user.id, user);
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Get()
   findAll() {
     return this.studentService.findAll();
@@ -89,7 +89,11 @@ export class StudentController {
 
   @Roles(Role.ADMIN, Role.STUDENT)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() updateStudentDto: UpdateStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.studentService.update(id, updateStudentDto, user);
   }
 

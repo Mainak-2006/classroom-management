@@ -187,7 +187,10 @@ export class AuthService {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
         issuer: JWT_CONSTANTS.ISSUER,
       });
-      await this.tokenStore.blacklistAccessToken(payload.jti, payload.exp! * 1000);
+      await this.tokenStore.blacklistAccessToken(
+        payload.jti,
+        payload.exp! * 1000,
+      );
     } catch {
       // Ignore invalid tokens; nothing to blacklist.
     }

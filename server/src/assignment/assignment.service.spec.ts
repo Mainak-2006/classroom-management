@@ -256,9 +256,9 @@ describe('AssignmentService', () => {
         status: AssignmentStatus.CLOSED,
       });
 
-      await expect(service.remove('assignment-1', adminRequester)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.remove('assignment-1', adminRequester),
+      ).rejects.toThrow(ConflictException);
       expect(prisma.assignment.delete).not.toHaveBeenCalled();
     });
   });
