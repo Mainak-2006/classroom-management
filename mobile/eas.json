@@ -11,10 +11,16 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "@env EXPO_PUBLIC_API_URL"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "@env EXPO_PUBLIC_API_URL"
+      }
     }
   },
   "submit": {
