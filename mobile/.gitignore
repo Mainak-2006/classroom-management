@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+eas.json
 
 # Native
 .kotlin/
@@ -45,4 +46,3 @@ example
 # generated native folders
 /ios
 /android
-eas.json
