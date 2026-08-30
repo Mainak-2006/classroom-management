@@ -76,7 +76,7 @@ describe('AuthService', () => {
     tokenStore = {
       save: jest.fn(),
       isValid: jest.fn().mockReturnValue(true),
-      revoke: jest.fn(),
+      revoke: jest.fn().mockReturnValue({ count: 1 }),
       revokeAllForUser: jest.fn(),
       blacklistAccessToken: jest.fn(),
       isAccessTokenBlacklisted: jest.fn().mockReturnValue(false),
@@ -295,7 +295,7 @@ describe('AuthService', () => {
   describe('refresh', () => {
     it('should rotate the refresh token and issue a new pair', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
-      (tokenStore.isValid as jest.Mock).mockReturnValue(true);
+      (tokenStore.revoke as jest.Mock).mockReturnValue({ count: 1 });
 
       const result = await service.refresh('old-refresh-token');
 
@@ -314,7 +314,9 @@ describe('AuthService', () => {
         throw new Error('bad token');
       });
 
-      await expect(service.refresh('bad-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('bad-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw when the token is not a refresh token', async () => {
@@ -328,14 +330,14 @@ describe('AuthService', () => {
       );
     });
 
-    it('should throw when the refresh token has been revoked', async () => {
+    it('should throw when the refresh token has already been revoked', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue(mockDecoded);
-      (tokenStore.isValid as jest.Mock).mockReturnValue(false);
+      (tokenStore.revoke as jest.Mock).mockReturnValue({ count: 0 });
 
       await expect(service.refresh('revoked-refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
-      expect(tokenStore.revoke).not.toHaveBeenCalled();
+      expect(tokenStore.save).not.toHaveBeenCalled();
     });
   });
 

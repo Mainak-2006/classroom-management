@@ -85,13 +85,16 @@ describe('CourseController', () => {
   });
 
   it('POST /bulk should delegate to createBulk', async () => {
-    await controller.createBulk([validCourseDto]);
+    await controller.createBulk({ items: [validCourseDto] });
     expect(courseService.createBulk).toHaveBeenCalledWith([validCourseDto]);
   });
 
   it('GET / should delegate to findAllForRequester', async () => {
-    await controller.findAll(requester);
-    expect(courseService.findAllForRequester).toHaveBeenCalledWith(requester);
+    await controller.findAll(requester, {});
+    expect(courseService.findAllForRequester).toHaveBeenCalledWith(
+      requester,
+      {},
+    );
   });
 
   it('GET /:id should delegate to findOneForRequester', async () => {
@@ -156,23 +159,32 @@ describe('CourseController', () => {
   });
 
   it('GET /:id/students should delegate to getCourseStudents', async () => {
-    await controller.getCourseStudents('course-1');
-    expect(courseService.getCourseStudents).toHaveBeenCalledWith('course-1');
+    await controller.getCourseStudents('course-1', requester);
+    expect(courseService.getCourseStudents).toHaveBeenCalledWith(
+      'course-1',
+      requester,
+    );
   });
 
   it('GET /:id/teacher should delegate to getCourseTeacher', async () => {
-    await controller.getCourseTeacher('course-1');
-    expect(courseService.getCourseTeacher).toHaveBeenCalledWith('course-1');
+    await controller.getCourseTeacher('course-1', requester);
+    expect(courseService.getCourseTeacher).toHaveBeenCalledWith(
+      'course-1',
+      requester,
+    );
   });
 
   it('GET /semester/:semester should delegate to findBySemester with a number', async () => {
-    await controller.findBySemester('1');
-    expect(courseService.findBySemester).toHaveBeenCalledWith(1);
+    await controller.findBySemester('1', requester);
+    expect(courseService.findBySemester).toHaveBeenCalledWith(1, requester);
   });
 
   it('GET /department/:department should delegate to findByDepartment', async () => {
-    await controller.findByDepartment('cs');
-    expect(courseService.findByDepartment).toHaveBeenCalledWith('cs');
+    await controller.findByDepartment('cs', requester);
+    expect(courseService.findByDepartment).toHaveBeenCalledWith(
+      'cs',
+      requester,
+    );
   });
 
   it('GET /teacher/:teacherId should delegate to findByTeacher', async () => {

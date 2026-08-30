@@ -6,9 +6,11 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { StudentService } from './student.service';
 import { CreateStudentDto } from './dto/create-student.dto';
+import { CreateStudentManyDto } from './dto/create-student-many.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CourseService } from '../course/course.service';
@@ -18,6 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import type { PaginationQuery } from '../common/pagination';
 
 @Controller('student')
 export class StudentController {
@@ -37,8 +40,8 @@ export class StudentController {
 
   @Roles(Role.ADMIN)
   @Post('bulk')
-  createBulk(@Body() students: CreateStudentDto[]) {
-    return this.studentService.createBulk(students);
+  createBulk(@Body() dto: CreateStudentManyDto) {
+    return this.studentService.createBulk(dto.items);
   }
 
   @Roles(Role.STUDENT)
@@ -75,10 +78,17 @@ export class StudentController {
     return this.assignmentService.findByStudent(user.id, user);
   }
 
+  // Active students for admin/teacher enrollment pickers (not ADMIN-only)
+  @Roles(Role.ADMIN, Role.TEACHER)
+  @Get('enrollable')
+  findEnrollable(@Query() query: PaginationQuery) {
+    return this.studentService.findEnrollable(query);
+  }
+
   @Roles(Role.ADMIN)
   @Get()
-  findAll() {
-    return this.studentService.findAll();
+  findAll(@Query() query: PaginationQuery) {
+    return this.studentService.findAll(query);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -89,7 +99,11 @@ export class StudentController {
 
   @Roles(Role.ADMIN, Role.STUDENT)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() updateStudentDto: UpdateStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.studentService.update(id, updateStudentDto, user);
   }
 

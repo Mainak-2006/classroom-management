@@ -14,11 +14,13 @@ export class SeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const shouldSeed =
-      (this.configService.get<string>('SEED_DEFAULT_ADMIN') ?? 'true') !==
-      'false';
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+    const explicitSetting =
+      this.configService.get<string>('SEED_DEFAULT_ADMIN');
 
-    if (!shouldSeed) {
+    // In production the default admin is only created when explicitly enabled.
+    if (explicitSetting === 'false' || (isProduction && !explicitSetting)) {
       this.logger.log('Default admin seeding disabled.');
       return;
     }
@@ -55,6 +57,6 @@ export class SeedService implements OnModuleInit {
 
     await this.adminService.create(createAdminDto);
 
-    this.logger.log(`Default admin seeded: ${email} (password: ${password})`);
+    this.logger.log('Default admin seeded.');
   }
 }

@@ -6,9 +6,11 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { TeacherService } from './teacher.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { CreateTeacherManyDto } from './dto/create-teacher-many.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CreateAttendanceDto } from '../attendance/dto/create-attendance.dto';
@@ -17,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import type { PaginationQuery } from '../common/pagination';
 
 @Controller('teacher')
 export class TeacherController {
@@ -34,8 +37,8 @@ export class TeacherController {
 
   @Roles(Role.ADMIN)
   @Post('bulk')
-  createBulk(@Body() teachers: CreateTeacherDto[]) {
-    return this.teacherService.createBulk(teachers);
+  createBulk(@Body() dto: CreateTeacherManyDto) {
+    return this.teacherService.createBulk(dto.items);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -56,21 +59,27 @@ export class TeacherController {
   // Mark attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Post('attendance')
-  markAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+  markAttendance(
+    @Body() createAttendanceDto: CreateAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.create(createAttendanceDto, user);
   }
 
   // View attendance for a course
   @Roles(Role.ADMIN, Role.TEACHER)
   @Get('attendance/course/:courseId')
-  courseAttendance(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+  courseAttendance(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendanceService.findByCourse(courseId, user);
   }
 
   @Roles(Role.ADMIN)
   @Get()
-  findAll() {
-    return this.teacherService.findAll();
+  findAll(@Query() query: PaginationQuery) {
+    return this.teacherService.findAll(query);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -81,7 +90,11 @@ export class TeacherController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTeacherDto: UpdateTeacherDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() updateTeacherDto: UpdateTeacherDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.teacherService.update(id, updateTeacherDto, user);
   }
 

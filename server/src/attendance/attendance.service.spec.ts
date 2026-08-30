@@ -22,6 +22,7 @@ const mockRecord = {
 describe('AttendanceService', () => {
   let service: AttendanceService;
   let prisma: {
+    $transaction: jest.Mock;
     attendance: {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
@@ -52,6 +53,7 @@ describe('AttendanceService', () => {
         delete: jest.fn(),
       },
     };
+    prisma.$transaction = jest.fn((cb: (tx: unknown) => unknown) => cb(prisma));
 
     courseService = {
       findOne: jest.fn().mockResolvedValue({ id: 'course-1' }),

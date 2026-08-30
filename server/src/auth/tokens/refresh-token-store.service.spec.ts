@@ -4,7 +4,7 @@ describe('RefreshTokenStore', () => {
   const session = {
     upsert: jest.fn(),
     findUnique: jest.fn(),
-    updateMany: jest.fn(),
+    updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const revoked = { upsert: jest.fn(), findUnique: jest.fn() };
   let store: RefreshTokenStore;
@@ -47,6 +47,7 @@ describe('RefreshTokenStore', () => {
   });
 
   it('revokes a session and persists access-token logout', async () => {
+    session.updateMany.mockResolvedValue({ count: 1 });
     await store.revoke('token');
     await store.blacklistAccessToken('access', Date.now() + 60_000);
     expect(session.updateMany).toHaveBeenCalled();

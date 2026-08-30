@@ -55,26 +55,39 @@ export class AssignmentController {
 
   // Find assignments by course
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string, @CurrentUser() user: AuthenticatedUser) {
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.assignmentService.findByCourse(courseId, user);
   }
 
   // Find assignments by status
   @Get('status/:status')
   @Roles(Role.ADMIN)
-  findByStatus(@Param('status') status: AssignmentStatus, @CurrentUser() user: AuthenticatedUser) {
+  findByStatus(
+    @Param('status') status: AssignmentStatus,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.assignmentService.findByStatus(status, user);
   }
 
   @Roles(Role.STUDENT)
   @Post(':id/submissions')
-  submit(@Param('id') id: string, @Body() dto: CreateAssignmentSubmissionDto, @CurrentUser() user: AuthenticatedUser) {
+  submit(
+    @Param('id') id: string,
+    @Body() dto: CreateAssignmentSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.assignmentService.submit(id, dto, user);
   }
 
   @Roles(Role.STUDENT)
   @Get(':id/submissions/me')
-  mySubmission(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  mySubmission(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.assignmentService.findMySubmission(id, user);
   }
 
@@ -86,7 +99,11 @@ export class AssignmentController {
 
   @Roles(Role.ADMIN, Role.TEACHER)
   @Patch('submissions/:submissionId')
-  grade(@Param('submissionId') submissionId: string, @Body() dto: GradeAssignmentSubmissionDto, @CurrentUser() user: AuthenticatedUser) {
+  grade(
+    @Param('submissionId') submissionId: string,
+    @Body() dto: GradeAssignmentSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.assignmentService.gradeSubmission(submissionId, dto, user);
   }
 

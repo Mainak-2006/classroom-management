@@ -84,8 +84,8 @@ export class CreateStudentDto {
   @MinLength(8)
   password!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   @MinLength(8)
-  confirmPassword?: string;
+  confirmPassword!: string;
 }

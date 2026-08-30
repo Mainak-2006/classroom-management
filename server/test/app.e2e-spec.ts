@@ -15,8 +15,18 @@ describe('AppController (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue({
+        student: {
+          findUnique: jest.fn().mockResolvedValue({ isActive: true }),
+        },
+        teacher: {
+          findUnique: jest.fn().mockResolvedValue({ isActive: true }),
+        },
+        admin: { findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
         assignment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-        exam: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        exam: {
+          findMany: jest.fn().mockResolvedValue([]),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         authSession: { findUnique: jest.fn().mockResolvedValue(null) },
         revokedAccessToken: { findUnique: jest.fn().mockResolvedValue(null) },
       })

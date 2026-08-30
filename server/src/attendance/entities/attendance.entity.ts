@@ -1,9 +1,6 @@
-export enum AttendanceStatus {
-  PRESENT = 'PRESENT',
-  ABSENT = 'ABSENT',
-  LATE = 'LATE',
-  EXCUSED = 'EXCUSED',
-}
+import { AttendanceStatus } from '@prisma/client';
+
+export { AttendanceStatus };
 
 export class Attendance {
   id!: string;

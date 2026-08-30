@@ -56,6 +56,7 @@ describe('CourseService', () => {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      count: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
@@ -70,6 +71,7 @@ describe('CourseService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -164,13 +166,22 @@ describe('CourseService', () => {
   describe('findAll', () => {
     it('should return all courses with a total', async () => {
       prisma.course.findMany.mockResolvedValue([mockCourse]);
+      prisma.course.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
       expect(prisma.course.findMany).toHaveBeenCalledWith({
         include: expect.anything(),
+        skip: 0,
+        take: 20,
       });
-      expect(result).toEqual({ total: 1, data: [mockCourse] });
+      expect(result).toEqual({
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        data: [mockCourse],
+      });
     });
 
     it('should strip passwords from nested teacher and students', async () => {
@@ -191,6 +202,7 @@ describe('CourseService', () => {
           ],
         },
       ]);
+      prisma.course.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
@@ -594,23 +606,39 @@ describe('CourseService', () => {
     it('should return the student enrolled courses with only the teacher included', async () => {
       studentService.findOne.mockResolvedValue({ id: 'student-1' });
       prisma.course.findMany.mockResolvedValue([mockCourse]);
+      prisma.course.count.mockResolvedValue(1);
 
       const result = await service.findByStudent('student-1');
 
       expect(prisma.course.findMany).toHaveBeenCalledWith({
         where: { students: { some: { id: 'student-1' } } },
         include: { teacher: true },
+        skip: 0,
+        take: 20,
       });
-      expect(result).toEqual({ total: 1, data: [mockCourse] });
+      expect(result).toEqual({
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        data: [mockCourse],
+      });
     });
 
     it('should return an empty list for a student with no courses', async () => {
       studentService.findOne.mockResolvedValue({ id: 'student-1' });
       prisma.course.findMany.mockResolvedValue([]);
+      prisma.course.count.mockResolvedValue(0);
 
       const result = await service.findByStudent('student-1');
 
-      expect(result).toEqual({ total: 0, data: [] });
+      expect(result).toEqual({
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        data: [],
+      });
     });
   });
 
@@ -627,14 +655,23 @@ describe('CourseService', () => {
     it('should return the courses taught by the teacher', async () => {
       teacherService.findOne.mockResolvedValue({ id: 'teacher-1' });
       prisma.course.findMany.mockResolvedValue([mockCourse]);
+      prisma.course.count.mockResolvedValue(1);
 
       const result = await service.findByTeacher('teacher-1');
 
       expect(prisma.course.findMany).toHaveBeenCalledWith({
         where: { teacherId: 'teacher-1' },
         include: { students: true },
+        skip: 0,
+        take: 20,
       });
-      expect(result).toEqual({ total: 1, data: [mockCourse] });
+      expect(result).toEqual({
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        data: [mockCourse],
+      });
     });
   });
 

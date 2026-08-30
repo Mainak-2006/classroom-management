@@ -32,28 +32,25 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string) {
-    const student = (await this.studentService.validateStudent(
-      email,
-      password,
-    )) as AuthUser | null;
+    const student = await this.resolveValidated(() =>
+      this.studentService.validateStudent(email, password),
+    );
 
     if (student) {
       return this.issueTokens(student, 'student');
     }
 
-    const teacher = (await this.teacherService.validateTeacher(
-      email,
-      password,
-    )) as AuthUser | null;
+    const teacher = await this.resolveValidated(() =>
+      this.teacherService.validateTeacher(email, password),
+    );
 
     if (teacher) {
       return this.issueTokens(teacher, 'teacher');
     }
 
-    const admin = (await this.adminService.validateAdmin(
-      email,
-      password,
-    )) as AuthUser | null;
+    const admin = await this.resolveValidated(() =>
+      this.adminService.validateAdmin(email, password),
+    );
 
     if (admin) {
       return this.issueTokens(admin, 'admin');
@@ -89,12 +86,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    if (!(await this.tokenStore.isValid(payload.jti))) {
+    // Rotate: conditionally revoke the old refresh token. Only one concurrent
+    // request can win when the token is still valid, preventing replay reuse.
+    const { count } = await this.tokenStore.revoke(payload.jti);
+
+    if (count === 0) {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
-
-    // Rotate: revoke the old refresh token before issuing a new pair.
-    await this.tokenStore.revoke(payload.jti);
 
     return this.issueTokens(
       { id: payload.id, email: payload.email },
@@ -114,6 +112,17 @@ export class AuthService {
     return {
       message: 'Logout successful.',
     };
+  }
+
+  private async resolveValidated<T>(
+    validate: () => Promise<T | null>,
+  ): Promise<T | null> {
+    try {
+      return await validate();
+    } catch (error) {
+      if (error instanceof UnauthorizedException) return null;
+      throw error;
+    }
   }
 
   private async issueTokens(user: AuthUser, role: UserRole) {
@@ -187,7 +196,10 @@ export class AuthService {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
         issuer: JWT_CONSTANTS.ISSUER,
       });
-      await this.tokenStore.blacklistAccessToken(payload.jti, payload.exp! * 1000);
+      await this.tokenStore.blacklistAccessToken(
+        payload.jti,
+        payload.exp! * 1000,
+      );
     } catch {
       // Ignore invalid tokens; nothing to blacklist.
     }
