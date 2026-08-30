@@ -13,6 +13,11 @@ import { TeacherService } from '../teacher/teacher.service';
 import { StudentService } from '../student/student.service';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import {
+  buildPagination,
+  parsePagination,
+  type PaginationQuery,
+} from '../common/pagination';
 
 const courseInclude = {
   teacher: true,
@@ -81,7 +86,7 @@ export class CourseService {
         department: createCourseDto.department,
         semester: createCourseDto.semester,
         credits: createCourseDto.credits,
-        isActive: true,
+        isActive: createCourseDto.isActive ?? true,
         teacherId,
       },
       include: courseInclude,
@@ -93,22 +98,28 @@ export class CourseService {
     };
   }
 
-  async findAll() {
-    const courses = await this.prisma.course.findMany({
-      include: courseInclude,
-    });
+  async findAll(query: PaginationQuery = {}) {
+    const { skip, take } = parsePagination(query);
+    const [courses, total] = await Promise.all([
+      this.prisma.course.findMany({ include: courseInclude, skip, take }),
+      this.prisma.course.count(),
+    ]);
 
     return {
-      total: courses.length,
+      total,
+      ...buildPagination(total, query),
       data: courses.map(sanitizeCourse),
     };
   }
 
-  async findAllForRequester(requester: AuthenticatedUser) {
-    if (requester.role === Role.ADMIN) return this.findAll();
+  async findAllForRequester(
+    requester: AuthenticatedUser,
+    query: PaginationQuery = {},
+  ) {
+    if (requester.role === Role.ADMIN) return this.findAll(query);
     if (requester.role === Role.TEACHER)
-      return this.findByTeacher(requester.id);
-    return this.findByStudent(requester.id);
+      return this.findByTeacher(requester.id, query);
+    return this.findByStudent(requester.id, query);
   }
 
   async findOne(id: string) {
@@ -407,31 +418,45 @@ export class CourseService {
   }
 
   // Find courses a student is enrolled in
-  async findByStudent(studentId: string) {
+  async findByStudent(studentId: string, query: PaginationQuery = {}) {
     await this.studentService.findOne(studentId);
-
-    const courses = await this.prisma.course.findMany({
-      where: { students: { some: { id: studentId } } },
-      include: { teacher: true },
-    });
+    const { skip, take } = parsePagination(query);
+    const where = { students: { some: { id: studentId } } };
+    const [courses, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        include: { teacher: true },
+        skip,
+        take,
+      }),
+      this.prisma.course.count({ where }),
+    ]);
 
     return {
-      total: courses.length,
+      total,
+      ...buildPagination(total, query),
       data: courses.map(sanitizeCourse),
     };
   }
 
   // Find courses taught by a teacher
-  async findByTeacher(teacherId: string) {
+  async findByTeacher(teacherId: string, query: PaginationQuery = {}) {
     await this.teacherService.findOne(teacherId);
-
-    const courses = await this.prisma.course.findMany({
-      where: { teacherId },
-      include: { students: true },
-    });
+    const { skip, take } = parsePagination(query);
+    const where = { teacherId };
+    const [courses, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        include: { students: true },
+        skip,
+        take,
+      }),
+      this.prisma.course.count({ where }),
+    ]);
 
     return {
-      total: courses.length,
+      total,
+      ...buildPagination(total, query),
       data: courses.map(sanitizeCourse),
     };
   }
@@ -568,7 +593,7 @@ export class CourseService {
           department: createCourseDto.department,
           semester: createCourseDto.semester,
           credits: createCourseDto.credits,
-          isActive: true,
+          isActive: createCourseDto.isActive ?? true,
           teacherId,
         },
       });

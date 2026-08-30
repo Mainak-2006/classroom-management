@@ -6,15 +6,18 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
+import { CreateCourseManyDto } from './dto/create-course-many.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import type { PaginationQuery } from '../common/pagination';
 
 @Controller('course')
 export class CourseController {
@@ -31,13 +34,16 @@ export class CourseController {
 
   @Roles(Role.ADMIN)
   @Post('bulk')
-  createBulk(@Body() courses: CreateCourseDto[]) {
-    return this.courseService.createBulk(courses);
+  createBulk(@Body() dto: CreateCourseManyDto) {
+    return this.courseService.createBulk(dto.items);
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.courseService.findAllForRequester(user);
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQuery,
+  ) {
+    return this.courseService.findAllForRequester(user, query);
   }
 
   @Roles(Role.ADMIN, Role.TEACHER)
@@ -104,25 +110,23 @@ export class CourseController {
   }
 
   // Get course students
+  @Roles(Role.ADMIN, Role.TEACHER)
   @Get(':id/students')
   getCourseStudents(
     @Param('id') courseId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return user === undefined
-      ? this.courseService.getCourseStudents(courseId)
-      : this.courseService.getCourseStudents(courseId, user);
+    return this.courseService.getCourseStudents(courseId, user);
   }
 
   // Get course teacher
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
   @Get(':id/teacher')
   getCourseTeacher(
     @Param('id') courseId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return user === undefined
-      ? this.courseService.getCourseTeacher(courseId)
-      : this.courseService.getCourseTeacher(courseId, user);
+    return this.courseService.getCourseTeacher(courseId, user);
   }
 
   // Find courses by semester
@@ -132,9 +136,7 @@ export class CourseController {
     @Param('semester') semester: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return user === undefined
-      ? this.courseService.findBySemester(+semester)
-      : this.courseService.findBySemester(+semester, user);
+    return this.courseService.findBySemester(+semester, user);
   }
 
   // Find courses by department
@@ -144,9 +146,7 @@ export class CourseController {
     @Param('department') department: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return user === undefined
-      ? this.courseService.findByDepartment(department)
-      : this.courseService.findByDepartment(department, user);
+    return this.courseService.findByDepartment(department, user);
   }
 
   // Find courses taught by a teacher

@@ -48,6 +48,7 @@ describe('StudentService', () => {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      count: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
@@ -76,6 +77,7 @@ describe('StudentService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -166,6 +168,7 @@ describe('StudentService', () => {
   describe('findAll', () => {
     it('should strip passwords from all returned students', async () => {
       prisma.student.findMany.mockResolvedValue([mockStudent, mockStudent]);
+      prisma.student.count.mockResolvedValue(2);
 
       const result = await service.findAll();
 

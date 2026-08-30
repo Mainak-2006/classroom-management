@@ -6,14 +6,17 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { CreateAdminManyDto } from './dto/create-admin-many.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import type { PaginationQuery } from '../common/pagination';
 
 @Controller('admin')
 export class AdminController {
@@ -27,8 +30,8 @@ export class AdminController {
 
   @Roles(Role.ADMIN)
   @Post('bulk')
-  createBulk(@Body() admins: CreateAdminDto[]) {
-    return this.adminService.createBulk(admins);
+  createBulk(@Body() dto: CreateAdminManyDto) {
+    return this.adminService.createBulk(dto.items);
   }
 
   @Roles(Role.ADMIN)
@@ -39,8 +42,8 @@ export class AdminController {
 
   @Roles(Role.ADMIN)
   @Get()
-  findAll() {
-    return this.adminService.findAll();
+  findAll(@Query() query: PaginationQuery) {
+    return this.adminService.findAll(query);
   }
 
   @Roles(Role.ADMIN)

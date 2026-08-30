@@ -4,7 +4,6 @@ import {
   ConflictException,
   ForbiddenException,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -14,19 +13,16 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import type { Student } from '@prisma/client';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { omit } from '../common/omit';
+import { assertPasswordsMatch, hashPassword } from '../common/passwords';
+import { assertEmailAvailableAcrossAccounts } from '../common/email';
+import {
+  buildPagination,
+  parsePagination,
+  type PaginationQuery,
+} from '../common/pagination';
 
 type SafeStudent = Omit<Student, 'password'>;
-
-function omit<T extends object, K extends keyof T>(
-  obj: T,
-  keys: K[],
-): Omit<T, K> {
-  const result = { ...obj };
-  for (const key of keys) {
-    delete result[key];
-  }
-  return result;
-}
 
 @Injectable()
 export class StudentService {
@@ -49,15 +45,18 @@ export class StudentService {
       );
     }
 
-    await this.assertEmailAvailableAcrossAccounts(createStudentDto.email);
+    await assertEmailAvailableAcrossAccounts(
+      this.prisma,
+      createStudentDto.email,
+      'student',
+    );
 
-    this.assertPasswordsMatch(
+    assertPasswordsMatch(
       createStudentDto.password,
       createStudentDto.confirmPassword,
     );
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(createStudentDto.password, salt);
+    const hashedPassword = await hashPassword(createStudentDto.password);
 
     const { confirmPassword, ...rest } = createStudentDto;
 
@@ -75,11 +74,16 @@ export class StudentService {
     };
   }
 
-  async findAll() {
-    const students = await this.prisma.student.findMany();
+  async findAll(query: PaginationQuery = {}) {
+    const { skip, take } = parsePagination(query);
+    const [students, total] = await Promise.all([
+      this.prisma.student.findMany({ skip, take }),
+      this.prisma.student.count(),
+    ]);
 
     return {
-      total: students.length,
+      total,
+      ...buildPagination(total, query),
       data: students.map((student) => omit(student, ['password'])),
     };
   }
@@ -109,6 +113,26 @@ export class StudentService {
       if (enrolledInOwnCourse) return this.findOne(id);
     }
     throw new ForbiddenException('You are not allowed to view this student');
+  }
+
+  async findEnrollable(query: PaginationQuery = {}) {
+    const { skip, take } = parsePagination(query);
+    const where = { isActive: true };
+    const [students, total] = await Promise.all([
+      this.prisma.student.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { rollNumber: 'asc' },
+      }),
+      this.prisma.student.count({ where }),
+    ]);
+
+    return {
+      total,
+      ...buildPagination(total, query),
+      data: students.map((student) => omit(student, ['password'])),
+    };
   }
 
   async validateStudent(
@@ -150,7 +174,12 @@ export class StudentService {
     }
 
     if (updateStudentDto.email) {
-      await this.assertEmailAvailableAcrossAccounts(updateStudentDto.email, id);
+      await assertEmailAvailableAcrossAccounts(
+        this.prisma,
+        updateStudentDto.email,
+        'student',
+        id,
+      );
     }
 
     const { confirmPassword, password, ...rest } = updateStudentDto;
@@ -164,8 +193,7 @@ export class StudentService {
     }
 
     if (password) {
-      const salt = await bcrypt.genSalt(10);
-      data.password = await bcrypt.hash(password, salt);
+      data.password = await hashPassword(password);
     }
 
     const student = await this.prisma.student.update({ where: { id }, data });
@@ -210,10 +238,14 @@ export class StudentService {
         continue;
       }
 
-      this.assertPasswordsMatch(student.password, student.confirmPassword);
+      await assertEmailAvailableAcrossAccounts(
+        this.prisma,
+        student.email,
+        'student',
+      );
+      assertPasswordsMatch(student.password, student.confirmPassword);
 
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(student.password, salt);
+      const hashedPassword = await hashPassword(student.password);
 
       const { confirmPassword, ...rest } = student;
 
@@ -235,12 +267,6 @@ export class StudentService {
     };
   }
 
-  private assertPasswordsMatch(password: string, confirmPassword?: string) {
-    if (confirmPassword !== undefined && confirmPassword !== password) {
-      throw new BadRequestException('Passwords do not match');
-    }
-  }
-
   private assertCanManage(
     id: string,
     requester: AuthenticatedUser | undefined,
@@ -255,35 +281,5 @@ export class StudentService {
         ? 'Only administrators can delete student accounts'
         : 'You can only update your own student profile',
     );
-  }
-
-  private async assertEmailAvailableAcrossAccounts(
-    email: string,
-    ownStudentId?: string,
-  ) {
-    const prisma = this.prisma as unknown as {
-      teacher?: {
-        findUnique: (args: unknown) => Promise<{ id: string } | null>;
-      };
-      admin?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
-    };
-    const [teacher, admin] = await Promise.all([
-      prisma.teacher?.findUnique({ where: { email } }) ?? Promise.resolve(null),
-      prisma.admin?.findUnique({ where: { email } }) ?? Promise.resolve(null),
-    ]);
-    if (teacher || admin) {
-      throw new ConflictException('An account with this email already exists.');
-    }
-    if (ownStudentId) {
-      const otherStudent = await this.prisma.student.findFirst({
-        where: { email, id: { not: ownStudentId } },
-        select: { id: true },
-      });
-      if (otherStudent) {
-        throw new ConflictException(
-          'An account with this email already exists.',
-        );
-      }
-    }
   }
 }

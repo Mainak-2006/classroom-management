@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import type { Attendance } from '@prisma/client';
+import type { Attendance, Prisma } from '@prisma/client';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { CourseService } from '../course/course.service';
@@ -22,6 +22,12 @@ function dayRange(date: Date) {
   end.setUTCDate(end.getUTCDate() + 1);
 
   return { start, end };
+}
+
+function normalizeDate(date: Date) {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
 }
 
 @Injectable()
@@ -45,6 +51,7 @@ export class AttendanceService {
   }
 
   private async assertNoDuplicate(
+    client: Pick<Prisma.TransactionClient, 'attendance'>,
     studentId: string,
     courseId: string,
     date: Date,
@@ -52,7 +59,7 @@ export class AttendanceService {
   ) {
     const { start, end } = dayRange(date);
 
-    const exists = await this.prisma.attendance.findFirst({
+    const exists = await client.attendance.findFirst({
       where: {
         id: excludeId ? { not: excludeId } : undefined,
         studentId,
@@ -88,22 +95,25 @@ export class AttendanceService {
       createAttendanceDto.studentId,
     );
 
-    const date = new Date(createAttendanceDto.date);
+    const date = normalizeDate(new Date(createAttendanceDto.date));
 
-    await this.assertNoDuplicate(
-      createAttendanceDto.studentId,
-      createAttendanceDto.courseId,
-      date,
-    );
-
-    const record = await this.prisma.attendance.create({
-      data: {
-        studentId: createAttendanceDto.studentId,
-        courseId: createAttendanceDto.courseId,
+    const record = await this.prisma.$transaction(async (tx) => {
+      await this.assertNoDuplicate(
+        tx,
+        createAttendanceDto.studentId,
+        createAttendanceDto.courseId,
         date,
-        status: createAttendanceDto.status ?? 'PRESENT',
-        notes: createAttendanceDto.notes,
-      },
+      );
+
+      return tx.attendance.create({
+        data: {
+          studentId: createAttendanceDto.studentId,
+          courseId: createAttendanceDto.courseId,
+          date,
+          status: createAttendanceDto.status ?? 'PRESENT',
+          notes: createAttendanceDto.notes,
+        },
+      });
     });
 
     return {
@@ -134,22 +144,25 @@ export class AttendanceService {
         createAttendanceDto.studentId,
       );
 
-      const date = new Date(createAttendanceDto.date);
+      const date = normalizeDate(new Date(createAttendanceDto.date));
 
-      await this.assertNoDuplicate(
-        createAttendanceDto.studentId,
-        createAttendanceDto.courseId,
-        date,
-      );
-
-      const record = await this.prisma.attendance.create({
-        data: {
-          studentId: createAttendanceDto.studentId,
-          courseId: createAttendanceDto.courseId,
+      const record = await this.prisma.$transaction(async (tx) => {
+        await this.assertNoDuplicate(
+          tx,
+          createAttendanceDto.studentId,
+          createAttendanceDto.courseId,
           date,
-          status: createAttendanceDto.status ?? 'PRESENT',
-          notes: createAttendanceDto.notes,
-        },
+        );
+
+        return tx.attendance.create({
+          data: {
+            studentId: createAttendanceDto.studentId,
+            courseId: createAttendanceDto.courseId,
+            date,
+            status: createAttendanceDto.status ?? 'PRESENT',
+            notes: createAttendanceDto.notes,
+          },
+        });
       });
 
       createdRecords.push(record);
@@ -183,8 +196,16 @@ export class AttendanceService {
       throw new NotFoundException('Attendance record not found');
     }
 
-    if (requester)
-      await this.courseService.assertCanViewCourse(requester, record.courseId);
+    if (requester?.role === Role.STUDENT) {
+      if (record.studentId !== requester.id) {
+        throw new ForbiddenException('You can only view your own attendance');
+      }
+    } else if (requester?.role === Role.TEACHER) {
+      await this.courseService.assertTeacherOwnsCourse(
+        requester,
+        record.courseId,
+      );
+    }
 
     return record;
   }
@@ -218,20 +239,22 @@ export class AttendanceService {
     }
 
     const date = updateAttendanceDto.date
-      ? new Date(updateAttendanceDto.date)
+      ? normalizeDate(new Date(updateAttendanceDto.date))
       : existing.date;
 
-    await this.assertNoDuplicate(studentId, courseId, date, id);
+    const record = await this.prisma.$transaction(async (tx) => {
+      await this.assertNoDuplicate(tx, studentId, courseId, date, id);
 
-    const record = await this.prisma.attendance.update({
-      where: { id },
-      data: {
-        studentId: updateAttendanceDto.studentId,
-        courseId: updateAttendanceDto.courseId,
-        date,
-        status: updateAttendanceDto.status,
-        notes: updateAttendanceDto.notes,
-      },
+      return tx.attendance.update({
+        where: { id },
+        data: {
+          studentId: updateAttendanceDto.studentId,
+          courseId: updateAttendanceDto.courseId,
+          date,
+          status: updateAttendanceDto.status,
+          notes: updateAttendanceDto.notes,
+        },
+      });
     });
 
     return {

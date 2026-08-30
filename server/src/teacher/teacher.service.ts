@@ -4,7 +4,6 @@ import {
   ConflictException,
   ForbiddenException,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
@@ -14,19 +13,16 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import type { Teacher } from '@prisma/client';
 import { Role } from '../auth/enums/role.enum';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { omit } from '../common/omit';
+import { assertPasswordsMatch, hashPassword } from '../common/passwords';
+import { assertEmailAvailableAcrossAccounts } from '../common/email';
+import {
+  buildPagination,
+  parsePagination,
+  type PaginationQuery,
+} from '../common/pagination';
 
 type SafeTeacher = Omit<Teacher, 'password'>;
-
-function omit<T extends object, K extends keyof T>(
-  obj: T,
-  keys: K[],
-): Omit<T, K> {
-  const result = { ...obj };
-  for (const key of keys) {
-    delete result[key];
-  }
-  return result;
-}
 
 @Injectable()
 export class TeacherService {
@@ -72,15 +68,18 @@ export class TeacherService {
       );
     }
 
-    await this.assertEmailAvailableAcrossAccounts(createTeacherDto.email);
+    await assertEmailAvailableAcrossAccounts(
+      this.prisma,
+      createTeacherDto.email,
+      'teacher',
+    );
 
-    this.assertPasswordsMatch(
+    assertPasswordsMatch(
       createTeacherDto.password,
       createTeacherDto.confirmPassword,
     );
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(createTeacherDto.password, salt);
+    const hashedPassword = await hashPassword(createTeacherDto.password);
 
     const { confirmPassword, ...rest } = createTeacherDto;
 
@@ -98,11 +97,16 @@ export class TeacherService {
     };
   }
 
-  async findAll() {
-    const teachers = await this.prisma.teacher.findMany();
+  async findAll(query: PaginationQuery = {}) {
+    const { skip, take } = parsePagination(query);
+    const [teachers, total] = await Promise.all([
+      this.prisma.teacher.findMany({ skip, take }),
+      this.prisma.teacher.count(),
+    ]);
 
     return {
-      total: teachers.length,
+      total,
+      ...buildPagination(total, query),
       data: teachers.map((teacher) => omit(teacher, ['password'])),
     };
   }
@@ -143,7 +147,12 @@ export class TeacherService {
     }
 
     if (updateTeacherDto.email) {
-      await this.assertEmailAvailableAcrossAccounts(updateTeacherDto.email, id);
+      await assertEmailAvailableAcrossAccounts(
+        this.prisma,
+        updateTeacherDto.email,
+        'teacher',
+        id,
+      );
     }
 
     const { confirmPassword, password, ...rest } = updateTeacherDto;
@@ -157,8 +166,7 @@ export class TeacherService {
     }
 
     if (password) {
-      const salt = await bcrypt.genSalt(10);
-      data.password = await bcrypt.hash(password, salt);
+      data.password = await hashPassword(password);
     }
 
     const teacher = await this.prisma.teacher.update({ where: { id }, data });
@@ -203,10 +211,14 @@ export class TeacherService {
         continue;
       }
 
-      this.assertPasswordsMatch(teacher.password, teacher.confirmPassword);
+      await assertEmailAvailableAcrossAccounts(
+        this.prisma,
+        teacher.email,
+        'teacher',
+      );
+      assertPasswordsMatch(teacher.password, teacher.confirmPassword);
 
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(teacher.password, salt);
+      const hashedPassword = await hashPassword(teacher.password);
 
       const { confirmPassword, ...rest } = teacher;
 
@@ -228,12 +240,6 @@ export class TeacherService {
     };
   }
 
-  private assertPasswordsMatch(password: string, confirmPassword?: string) {
-    if (confirmPassword !== undefined && confirmPassword !== password) {
-      throw new BadRequestException('Passwords do not match');
-    }
-  }
-
   private assertCanManage(
     id: string,
     requester: AuthenticatedUser | undefined,
@@ -247,35 +253,5 @@ export class TeacherService {
         ? 'Only administrators can delete teacher accounts'
         : 'You can only update your own teacher profile',
     );
-  }
-
-  private async assertEmailAvailableAcrossAccounts(
-    email: string,
-    ownTeacherId?: string,
-  ) {
-    const prisma = this.prisma as unknown as {
-      student?: {
-        findUnique: (args: unknown) => Promise<{ id: string } | null>;
-      };
-      admin?: { findUnique: (args: unknown) => Promise<{ id: string } | null> };
-    };
-    const [student, admin] = await Promise.all([
-      prisma.student?.findUnique({ where: { email } }) ?? Promise.resolve(null),
-      prisma.admin?.findUnique({ where: { email } }) ?? Promise.resolve(null),
-    ]);
-    if (student || admin) {
-      throw new ConflictException('An account with this email already exists.');
-    }
-    if (ownTeacherId) {
-      const otherTeacher = await this.prisma.teacher.findFirst({
-        where: { email, id: { not: ownTeacherId } },
-        select: { id: true },
-      });
-      if (otherTeacher) {
-        throw new ConflictException(
-          'An account with this email already exists.',
-        );
-      }
-    }
   }
 }

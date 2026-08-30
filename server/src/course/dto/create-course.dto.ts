@@ -35,8 +35,9 @@ export class CreateCourseDto {
   @Max(6)
   credits: number;
 
+  @IsOptional()
   @IsBoolean()
-  isActive: boolean;
+  isActive?: boolean;
 
   @IsOptional()
   @IsString()

@@ -13,6 +13,7 @@ import { AssignmentModule } from './assignment/assignment.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ExamModule } from './exam/exam.module';
 import { LifecycleModule } from './lifecycle/lifecycle.module';
+import { SeedModule } from './seed/seed.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { LifecycleModule } from './lifecycle/lifecycle.module';
     AttendanceModule,
     ExamModule,
     LifecycleModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [AppService],

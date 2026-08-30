@@ -6,6 +6,11 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const express = app.getHttpAdapter().getInstance() as {
+    set: (name: string, value: number) => void;
+  };
+  express.set('trust proxy', 1);
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -24,6 +29,12 @@ async function bootstrap() {
   if (corsOrigins.length > 0) {
     app.enableCors({
       origin: corsOrigins,
+      credentials: true,
+    });
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Development default: allow the Expo web client from any origin.
+    app.enableCors({
+      origin: true,
       credentials: true,
     });
   }

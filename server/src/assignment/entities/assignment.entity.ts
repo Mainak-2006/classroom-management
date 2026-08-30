@@ -1,8 +1,6 @@
-export enum AssignmentStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  CLOSED = 'CLOSED',
-}
+import { AssignmentStatus } from '@prisma/client';
+
+export { AssignmentStatus };
 
 export class Assignment {
   id!: string;

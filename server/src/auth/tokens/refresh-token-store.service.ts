@@ -42,11 +42,13 @@ export class RefreshTokenStore {
     return Boolean(entry && !entry.revokedAt && entry.expiresAt > new Date());
   }
 
-  async revoke(tokenId: string): Promise<void> {
-    await this.prisma.authSession.updateMany({
+  async revoke(tokenId: string): Promise<{ count: number }> {
+    const result = await this.prisma.authSession.updateMany({
       where: { id: this.hash(tokenId), revokedAt: null },
       data: { revokedAt: new Date() },
     });
+
+    return { count: result.count };
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
@@ -56,7 +58,10 @@ export class RefreshTokenStore {
     });
   }
 
-  async blacklistAccessToken(tokenId: string, expiresAt: number): Promise<void> {
+  async blacklistAccessToken(
+    tokenId: string,
+    expiresAt: number,
+  ): Promise<void> {
     await this.prisma.revokedAccessToken.upsert({
       where: { id: this.hash(tokenId) },
       create: { id: this.hash(tokenId), expiresAt: new Date(expiresAt) },
