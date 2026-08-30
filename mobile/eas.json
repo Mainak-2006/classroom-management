@@ -5,7 +5,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "@env EXPO_PUBLIC_API_URL"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -18,6 +21,15 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "@env EXPO_PUBLIC_API_URL"
+      }
+    },
+    "production-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "@env EXPO_PUBLIC_API_URL"
       }
