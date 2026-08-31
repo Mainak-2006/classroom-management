@@ -1,4 +1,4 @@
-name: Deploy to Prisma Compute
+name: Deploy database migrations
 
 on:
   push:
@@ -39,27 +39,3 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
         run: npx prisma migrate deploy
-
-      - name: Deploy (main -> production)
-        env:
-          PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
-        run: |
-          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
-            --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
-            --branch main \
-            --app server \
-            --prod \
-            --yes \
-            --json
-
-      - name: Deploy (main -> server-test)
-        env:
-          PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
-        run: |
-          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
-            --project proj_cmshtk0vb2a7kxnfvrtn1xhgt \
-            --branch main \
-            --app server-test \
-            --prod \
-            --yes \
-            --json
