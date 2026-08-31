@@ -40,6 +40,46 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
         run: npx prisma migrate deploy
 
+      - name: Write production env file
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        run: |
+          cat > .env.compute.prod <<EOF
+          PORT=3000
+          DATABASE_URL="$DATABASE_URL"
+          JWT_SECRET="${JWT_SECRET:-naruhina@143}"
+          JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-naruhina_refresh@143}"
+          CORS_ORIGINS="$CORS_ORIGINS"
+          SEED_DEFAULT_ADMIN=true
+          SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}
+          SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}
+          EOF
+
+      - name: Write test env file
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        run: |
+          cat > .env.compute.test <<EOF
+          PORT=3000
+          DATABASE_URL="$DATABASE_URL"
+          JWT_SECRET="${JWT_SECRET:-naruhina@143}"
+          JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-naruhina_refresh@143}"
+          CORS_ORIGINS="$CORS_ORIGINS"
+          SEED_DEFAULT_ADMIN=true
+          SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}
+          SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}
+          EOF
+
       - name: Deploy (production)
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
@@ -49,7 +89,8 @@ jobs:
             --branch main \
             --prod \
             --yes \
-            --json
+            --json \
+            --env .env.compute.prod
 
       - name: Deploy (test)
         env:
@@ -60,4 +101,5 @@ jobs:
             --branch main \
             --prod \
             --yes \
-            --json
+            --json \
+            --env .env.compute.test
