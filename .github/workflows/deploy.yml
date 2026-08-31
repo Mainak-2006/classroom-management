@@ -44,7 +44,7 @@ jobs:
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
         run: |
-          bunx @prisma/cli@3.0.0-beta.30 app deploy \
+          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
             --project proj_ourgii7wts43ju9kbnijy9wv \
             --branch main \
             --prod \
@@ -55,7 +55,7 @@ jobs:
         env:
           PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
         run: |
-          bunx @prisma/cli@3.0.0-beta.30 app deploy \
+          npx --yes @prisma/cli@3.0.0-beta.30 app deploy \
             --project proj_g4az4m2s701yskth2l5cyjwb \
             --branch main \
             --prod \
