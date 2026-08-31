@@ -49,16 +49,16 @@ jobs:
           SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
           SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
         run: |
-          cat > .env.compute.prod <<EOF
-          PORT=3000
-          DATABASE_URL="$DATABASE_URL"
-          JWT_SECRET="${JWT_SECRET:-naruhina@143}"
-          JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-naruhina_refresh@143}"
-          CORS_ORIGINS="$CORS_ORIGINS"
-          SEED_DEFAULT_ADMIN=true
-          SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}
-          SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}
-          EOF
+          {
+            echo "PORT=3000"
+            echo "DATABASE_URL=\"$DATABASE_URL\""
+            echo "JWT_SECRET=\"${JWT_SECRET:-naruhina@143}\""
+            echo "JWT_REFRESH_SECRET=\"${JWT_REFRESH_SECRET:-naruhina_refresh@143}\""
+            if [ -n "$CORS_ORIGINS" ]; then echo "CORS_ORIGINS=\"$CORS_ORIGINS\""; fi
+            echo "SEED_DEFAULT_ADMIN=true"
+            echo "SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}"
+            echo "SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}"
+          } > .env.compute.prod
 
       - name: Write test env file
         env:
@@ -69,16 +69,16 @@ jobs:
           SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
           SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
         run: |
-          cat > .env.compute.test <<EOF
-          PORT=3000
-          DATABASE_URL="$DATABASE_URL"
-          JWT_SECRET="${JWT_SECRET:-naruhina@143}"
-          JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-naruhina_refresh@143}"
-          CORS_ORIGINS="$CORS_ORIGINS"
-          SEED_DEFAULT_ADMIN=true
-          SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}
-          SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}
-          EOF
+          {
+            echo "PORT=3000"
+            echo "DATABASE_URL=\"$DATABASE_URL\""
+            echo "JWT_SECRET=\"${JWT_SECRET:-naruhina@143}\""
+            echo "JWT_REFRESH_SECRET=\"${JWT_REFRESH_SECRET:-naruhina_refresh@143}\""
+            if [ -n "$CORS_ORIGINS" ]; then echo "CORS_ORIGINS=\"$CORS_ORIGINS\""; fi
+            echo "SEED_DEFAULT_ADMIN=true"
+            echo "SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@example.com}"
+            echo "SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-admin123}"
+          } > .env.compute.test
 
       - name: Deploy (production)
         env:
