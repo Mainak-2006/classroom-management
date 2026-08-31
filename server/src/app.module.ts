@@ -19,7 +19,11 @@ import { LifecycleModule } from './lifecycle/lifecycle.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath:
-        process.env.NODE_ENV === 'production' ? '.env.production' : '.env.test',
+        process.env.NODE_ENV === 'production'
+          ? '.env.production'
+          : process.env.NODE_ENV === 'test'
+            ? '.env.test'
+            : '.env',
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
